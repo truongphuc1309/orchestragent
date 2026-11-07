@@ -1,0 +1,33 @@
+spring:
+  application:
+    name: orchestragent
+  config:
+    # Loads the gitignored .env file (KEY=value lines) when present. The working directory is either the
+    # repository root (java -jar) or backend/app (Gradle bootRun).
+    import:
+      - "optional:file:.env[.properties]"
+      - "optional:file:../../.env[.properties]"
+  datasource:
+    url: ${DB_URL:}
+    username: ${DB_USER:}
+    password: ${DB_PASSWORD:}
+  flyway:
+    # Migrations are run per module by ModuleFlywayRunner in the platform module.
+    enabled: false
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+  modulith:
+    events:
+      republish-outstanding-events-on-restart: true
+
+server:
+  port: 8080
+  error:
+    include-message: never
+    include-stacktrace: never
+
+orchestragent:
+  security:
+    jwt-secret: ${JWT_SECRET:}

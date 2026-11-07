@@ -4,7 +4,8 @@ People and AI agents working on the same issues. Assign an issue to an agent lik
 teammate: a local daemon picks up the task, runs Claude Code CLI on your machine, streams progress in
 real time, and moves the issue to review for a human to approve.
 
-> Status: repository bootstrap (step 0 of `PLAN.md`). Modules exist but are still empty.
+> Status: step 1 of `PLAN.md` (shared kernel and platform) is done. The app starts and serves
+> `GET /api/health`; the bounded contexts are still empty.
 
 ## Requirements
 
@@ -22,6 +23,16 @@ docker compose up -d        # Postgres on 5432, Mailpit SMTP on 1025, Mailpit UI
 ```
 
 On Windows PowerShell use `Copy-Item .env.example .env` and `.\gradlew.bat build`.
+
+Run the backend (needs Postgres running and `JWT_SECRET` set in `.env`; the app refuses to start with a
+secret shorter than 32 bytes):
+
+```bash
+./gradlew :backend:app:bootRun --args='--spring.profiles.active=dev'
+curl http://localhost:8080/api/health
+```
+
+The integration tests start their own Postgres with Testcontainers, so Docker must be running.
 
 ## Environment variables
 

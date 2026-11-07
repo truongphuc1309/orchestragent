@@ -1,0 +1,4 @@
+# Test profile. The values below are throwaway test values, not real secrets.
+orchestragent:
+  security:
+    jwt-secret: test-only-secret-that-is-at-least-32-bytes-long

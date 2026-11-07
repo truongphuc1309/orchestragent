@@ -1,0 +1,1 @@
+CREATE TABLE other_things (id UUID PRIMARY KEY);

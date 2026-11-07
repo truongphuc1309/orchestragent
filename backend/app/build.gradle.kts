@@ -9,6 +9,13 @@ dependencies {
     implementation(project(":backend:issue:issue-infrastructure"))
     implementation(project(":backend:agent:agent-infrastructure"))
     implementation(project(":backend:inbox:inbox-infrastructure"))
+
+    testImplementation(libs.spring.boot.starter.webmvc.test)
+    testImplementation(libs.spring.boot.starter.security.test)
+    testImplementation(libs.spring.boot.testcontainers)
+    testImplementation(libs.testcontainers.postgresql)
+    testImplementation(libs.testcontainers.junit.jupiter)
+    testImplementation(libs.archunit.junit5)
 }
 
 springBoot {
