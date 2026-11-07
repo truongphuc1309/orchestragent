@@ -1,0 +1,335 @@
+import { screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { routes } from '@/app/routes'
+import { ACME, ADA, issue, issueId, MIA, member } from '@/test/fixtures'
+import { fakeServer, json, problem } from '@/test/fakeServer'
+import { renderRoutes } from '@/test/render'
+import { NO_FILTERS, useIssueViewStore } from '../filters'
+import type { Issue } from '../schemas'
+
+const MEMBERS = [member({ userId: ADA.id, name: 'ada', role: 'owner' }), member({ userId: MIA.userId, name: 'Mia' })]
+
+const ISSUES: Issue[] = [
+  issue({ id: issueId(1), number: 1, title: 'Write the plan', status: 'todo', position: 1024, priority: 'high' }),
+  issue({
+    id: issueId(2),
+    number: 2,
+    title: 'Fix the login',
+    status: 'todo',
+    position: 512,
+    assignee: { type: 'member', id: MIA.userId, name: 'Mia' },
+  }),
+  issue({ id: issueId(3), number: 3, title: 'Ship it', status: 'done', position: 1024, priority: 'urgent' }),
+  issue({ id: issueId(4), number: 4, title: 'Dropped idea', status: 'cancelled', position: 1024 }),
+]
+
+const ISSUES_PATH = `/api/workspaces/${ACME.id}/issues`
+const LIST = `GET ${ISSUES_PATH}?limit=500`
+
+function baseHandlers(items: Issue[] = ISSUES, total = items.length) {
+  return {
+    'GET /api/me': () => json(200, ADA),
+    'GET /api/workspaces': () => json(200, [ACME]),
+    [`GET /api/workspaces/${ACME.id}/members`]: () => json(200, MEMBERS),
+    [LIST]: () => json(200, { items, total }),
+  }
+}
+
+/** The card (list item) that holds the link with this title. */
+function cardOf(title: string): HTMLElement {
+  const card = screen.getByRole('link', { name: title }).closest('li')
+  if (card === null) {
+    throw new Error(`No card for ${title}`)
+  }
+  return card
+}
+
+function cardsIn(columnName: string): string[] {
+  const column = screen.getByRole('region', { name: columnName })
+  return within(column)
+    .queryAllByRole('link')
+    .map((link) => link.textContent ?? '')
+}
+
+describe('issues page', () => {
+  beforeEach(() => {
+    document.cookie = 'XSRF-TOKEN=test-token; path=/'
+    useIssueViewStore.setState({ view: 'board', filtersByWorkspace: {} })
+  })
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    document.cookie = 'XSRF-TOKEN=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/'
+  })
+
+  describe('board', () => {
+    it('shows the six columns with each issue in its column, ordered by position', async () => {
+      fakeServer(baseHandlers())
+      renderRoutes(routes, ['/w/acme/issues'])
+
+      await screen.findByText('Write the plan')
+      for (const name of ['Backlog', 'To do', 'In progress', 'In review', 'Blocked', 'Done']) {
+        expect(screen.getByRole('region', { name })).toBeInTheDocument()
+      }
+      expect(cardsIn('To do')).toEqual(['Fix the login', 'Write the plan'])
+      expect(cardsIn('Done')).toEqual(['Ship it'])
+      expect(cardsIn('Backlog')).toEqual([])
+      expect(screen.getByRole('region', { name: 'To do' })).toHaveTextContent('2')
+    })
+
+    it('leaves cancelled issues off the board', async () => {
+      fakeServer(baseHandlers())
+      renderRoutes(routes, ['/w/acme/issues'])
+
+      await screen.findByText('Write the plan')
+
+      expect(screen.queryByText('Dropped idea')).not.toBeInTheDocument()
+      expect(screen.queryByRole('region', { name: 'Cancelled' })).not.toBeInTheDocument()
+    })
+
+    it('shows the key, priority and assignee on a card and links to the issue', async () => {
+      fakeServer(baseHandlers())
+      renderRoutes(routes, ['/w/acme/issues'])
+
+      const link = await screen.findByRole('link', { name: 'Fix the login' })
+      const card = cardOf('Fix the login')
+      expect(link).toHaveAttribute('href', '/w/acme/issues/2')
+      expect(card).toHaveTextContent('ACM-2')
+      expect(within(card).getByText('Assigned to Mia')).toBeInTheDocument()
+      expect(within(cardOf('Write the plan')).getByRole('img', { name: 'Priority: High' })).toBeInTheDocument()
+    })
+
+    it('shows a message when the issues cannot be loaded and retries', async () => {
+      let healthy = false
+      fakeServer({
+        ...baseHandlers(),
+        [LIST]: () => (healthy ? json(200, { items: ISSUES, total: 4 }) : problem(500, {})),
+      })
+      renderRoutes(routes, ['/w/acme/issues'])
+      const user = userEvent.setup()
+
+      expect(await screen.findByRole('alert')).toHaveTextContent('Could not load the issues')
+      healthy = true
+      await user.click(screen.getByRole('button', { name: 'Try again' }))
+
+      expect(await screen.findByText('Write the plan')).toBeInTheDocument()
+    })
+
+    it('says when the list was cut short', async () => {
+      fakeServer(baseHandlers(ISSUES, 1203))
+      renderRoutes(routes, ['/w/acme/issues'])
+
+      expect(await screen.findByRole('status')).toHaveTextContent('Showing the newest 4 of 1203 issues')
+    })
+  })
+
+  describe('list view', () => {
+    it('switches to a table that includes cancelled issues, and remembers the choice', async () => {
+      fakeServer(baseHandlers())
+      renderRoutes(routes, ['/w/acme/issues'])
+      const user = userEvent.setup()
+      await screen.findByText('Write the plan')
+
+      await user.click(screen.getByRole('tab', { name: 'List' }))
+
+      const table = await screen.findByRole('table')
+      expect(within(table).getAllByRole('row')).toHaveLength(5)
+      expect(within(table).getByText('Dropped idea')).toBeInTheDocument()
+      expect(within(table).getByText('ACM-4')).toBeInTheDocument()
+      expect(within(table).getByText('Mia')).toBeInTheDocument()
+      expect(within(table).getAllByText('Unassigned')).toHaveLength(3)
+      expect(useIssueViewStore.getState().view).toBe('list')
+      expect(within(table).getByRole('link', { name: 'Fix the login' })).toHaveAttribute('href', '/w/acme/issues/2')
+    })
+
+    it('opens in the remembered view', async () => {
+      useIssueViewStore.setState({ view: 'list' })
+      fakeServer(baseHandlers())
+      renderRoutes(routes, ['/w/acme/issues'])
+
+      expect(await screen.findByRole('table')).toBeInTheDocument()
+    })
+
+    it('invites the user to create the first issue when there are none', async () => {
+      useIssueViewStore.setState({ view: 'list' })
+      fakeServer(baseHandlers([], 0))
+      renderRoutes(routes, ['/w/acme/issues'])
+
+      expect(await screen.findByText('No issues yet. Create the first one.')).toBeInTheDocument()
+    })
+  })
+
+  describe('filters', () => {
+    it('asks the server for the chosen statuses and remembers them for this workspace', async () => {
+      const server = fakeServer({
+        ...baseHandlers(),
+        [`GET ${ISSUES_PATH}?status=todo&limit=500`]: () => json(200, { items: [ISSUES[0], ISSUES[1]], total: 2 }),
+      })
+      renderRoutes(routes, ['/w/acme/issues'])
+      const user = userEvent.setup()
+      await screen.findByText('Ship it')
+
+      await user.click(screen.getByRole('button', { name: 'Status' }))
+      await user.click(await screen.findByRole('menuitemcheckbox', { name: 'To do' }))
+      await user.keyboard('{Escape}')
+
+      await waitFor(() => expect(screen.queryByText('Ship it')).not.toBeInTheDocument())
+      expect(server.calls(`GET ${ISSUES_PATH}?status=todo&limit=500`)).toHaveLength(1)
+      expect(useIssueViewStore.getState().filtersByWorkspace[ACME.id]?.statuses).toEqual(['todo'])
+      expect(screen.getByRole('button', { name: 'Status: 1 selected' })).toBeInTheDocument()
+    })
+
+    it('combines status, priority and assignee in one request', async () => {
+      useIssueViewStore.setState({
+        filtersByWorkspace: {
+          [ACME.id]: { statuses: ['todo', 'done'], priorities: ['high'], assignees: [MIA.userId], unassigned: true },
+        },
+      })
+      const path = `GET ${ISSUES_PATH}?status=todo&status=done&priority=high&assignee=${MIA.userId}&unassigned=true&limit=500`
+      const server = fakeServer({ ...baseHandlers(), [path]: () => json(200, { items: [], total: 0 }) })
+      renderRoutes(routes, ['/w/acme/issues'])
+
+      await waitFor(() => expect(server.calls(path)).toHaveLength(1))
+    })
+
+    it('clears the filters', async () => {
+      useIssueViewStore.setState({ filtersByWorkspace: { [ACME.id]: { ...NO_FILTERS, priorities: ['high'] } } })
+      fakeServer({
+        ...baseHandlers(),
+        [`GET ${ISSUES_PATH}?priority=high&limit=500`]: () => json(200, { items: [ISSUES[0]], total: 1 }),
+      })
+      renderRoutes(routes, ['/w/acme/issues'])
+      const user = userEvent.setup()
+      await screen.findByText('Write the plan')
+      expect(screen.queryByText('Ship it')).not.toBeInTheDocument()
+
+      await user.click(screen.getByRole('button', { name: 'Clear filters' }))
+
+      expect(await screen.findByText('Ship it')).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Clear filters' })).not.toBeInTheDocument()
+    })
+
+    it('says when nothing matches the filters', async () => {
+      useIssueViewStore.setState({
+        view: 'list',
+        filtersByWorkspace: { [ACME.id]: { ...NO_FILTERS, statuses: ['blocked'] } },
+      })
+      fakeServer({
+        ...baseHandlers(),
+        [`GET ${ISSUES_PATH}?status=blocked&limit=500`]: () => json(200, { items: [], total: 0 }),
+      })
+      renderRoutes(routes, ['/w/acme/issues'])
+
+      expect(await screen.findByText('No issues match these filters.')).toBeInTheDocument()
+    })
+
+    it('does not carry filters over to another workspace', async () => {
+      useIssueViewStore.setState({ filtersByWorkspace: { 'some-other-workspace': { ...NO_FILTERS, statuses: ['done'] } } })
+      fakeServer(baseHandlers())
+      renderRoutes(routes, ['/w/acme/issues'])
+
+      await screen.findByText('Ship it')
+      expect(screen.queryByRole('button', { name: 'Clear filters' })).not.toBeInTheDocument()
+    })
+  })
+
+  describe('creating an issue', () => {
+    it('checks the title and creates the issue with the chosen details', async () => {
+      const created = issue({
+        id: issueId(9),
+        number: 9,
+        title: 'New work',
+        priority: 'high',
+        assignee: { type: 'member', id: MIA.userId, name: 'Mia' },
+      })
+      let items = ISSUES
+      const server = fakeServer({
+        ...baseHandlers(),
+        [LIST]: () => json(200, { items, total: items.length }),
+        [`POST ${ISSUES_PATH}`]: () => {
+          items = [...ISSUES, created]
+          return json(201, created)
+        },
+      })
+      renderRoutes(routes, ['/w/acme/issues'])
+      const user = userEvent.setup()
+      await screen.findByText('Write the plan')
+
+      await user.click(screen.getByRole('button', { name: 'Create issue' }))
+      const dialog = await screen.findByRole('dialog', { name: 'Create issue' })
+      await user.click(within(dialog).getByRole('button', { name: 'Create' }))
+      expect(await within(dialog).findByText('Enter a title')).toBeInTheDocument()
+      expect(server.calls(`POST ${ISSUES_PATH}`)).toHaveLength(0)
+
+      await user.type(within(dialog).getByLabelText('Title'), '  New work  ')
+      await user.type(within(dialog).getByLabelText('Description'), 'Some details')
+      await user.click(within(dialog).getByRole('combobox', { name: 'Priority' }))
+      await user.click(await screen.findByRole('option', { name: 'High' }))
+      await user.click(within(dialog).getByRole('combobox', { name: 'Assignee' }))
+      await user.click(await screen.findByRole('option', { name: 'Mia' }))
+      await user.click(within(dialog).getByRole('button', { name: 'Create' }))
+
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+      expect(server.calls(`POST ${ISSUES_PATH}`)[0]?.body).toEqual({
+        title: 'New work',
+        description: 'Some details',
+        status: 'todo',
+        priority: 'high',
+        assignee: { type: 'member', id: MIA.userId },
+      })
+      expect(await screen.findByText('ACM-9 was created')).toBeInTheDocument()
+      expect(await screen.findByRole('link', { name: 'New work' })).toBeInTheDocument()
+    })
+
+    it('starts in the column whose plus button was used and sends no assignee when none is chosen', async () => {
+      const created = issue({ id: issueId(9), number: 9, title: 'Started', status: 'in_progress' })
+      const server = fakeServer({ ...baseHandlers(), [`POST ${ISSUES_PATH}`]: () => json(201, created) })
+      renderRoutes(routes, ['/w/acme/issues'])
+      const user = userEvent.setup()
+      await screen.findByText('Write the plan')
+
+      await user.click(screen.getByRole('button', { name: 'Create issue in In progress' }))
+      const dialog = await screen.findByRole('dialog', { name: 'Create issue' })
+      expect(within(dialog).getByRole('combobox', { name: 'Status' })).toHaveTextContent('In progress')
+      await user.type(within(dialog).getByLabelText('Title'), 'Started')
+      await user.click(within(dialog).getByRole('button', { name: 'Create' }))
+
+      await waitFor(() => expect(server.calls(`POST ${ISSUES_PATH}`)).toHaveLength(1))
+      const body = server.calls(`POST ${ISSUES_PATH}`)[0]?.body
+      expect(body).toMatchObject({ title: 'Started', status: 'in_progress', priority: 'none' })
+      expect(body).not.toHaveProperty('assignee')
+    })
+
+    it('shows the server error and keeps the dialog open', async () => {
+      fakeServer({
+        ...baseHandlers(),
+        [`POST ${ISSUES_PATH}`]: () => problem(400, { detail: 'Title must be a single line of text', code: 'issue.invalid_title' }),
+      })
+      renderRoutes(routes, ['/w/acme/issues'])
+      const user = userEvent.setup()
+      await screen.findByText('Write the plan')
+
+      await user.click(screen.getByRole('button', { name: 'Create issue' }))
+      const dialog = await screen.findByRole('dialog', { name: 'Create issue' })
+      await user.type(within(dialog).getByLabelText('Title'), 'Bad')
+      await user.click(within(dialog).getByRole('button', { name: 'Create' }))
+
+      expect(await within(dialog).findByText('Title must be a single line of text')).toBeInTheDocument()
+      expect(screen.getByRole('dialog')).toBeInTheDocument()
+    })
+
+    it('opens empty every time', async () => {
+      fakeServer(baseHandlers())
+      renderRoutes(routes, ['/w/acme/issues'])
+      const user = userEvent.setup()
+      await screen.findByText('Write the plan')
+
+      await user.click(screen.getByRole('button', { name: 'Create issue' }))
+      await user.type(await screen.findByLabelText('Title'), 'Half written')
+      await user.click(screen.getByRole('button', { name: 'Cancel' }))
+      await user.click(screen.getByRole('button', { name: 'Create issue' }))
+
+      expect(await screen.findByLabelText('Title')).toHaveValue('')
+    })
+  })
+})

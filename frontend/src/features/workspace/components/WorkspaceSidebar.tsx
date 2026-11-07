@@ -1,4 +1,4 @@
-import { Home, KeyRound, Users, type LucideIcon } from 'lucide-react'
+import { CircleDot, Home, KeyRound, Users, type LucideIcon } from 'lucide-react'
 import { NavLink } from 'react-router'
 import { cn } from '@/shared/lib/utils'
 import type { Workspace } from '../schemas'
@@ -32,6 +32,9 @@ export function WorkspaceSidebar({ current, workspaces }: { current: Workspace; 
       <nav aria-label="Workspace" className="flex flex-col gap-0.5">
         <SidebarLink to={base} icon={Home} end>
           Home
+        </SidebarLink>
+        <SidebarLink to={`${base}/issues`} icon={CircleDot}>
+          Issues
         </SidebarLink>
         <p className="mt-4 mb-1 px-2 text-xs font-semibold text-muted-foreground uppercase">Settings</p>
         <SidebarLink to={`${base}/settings/members`} icon={Users}>

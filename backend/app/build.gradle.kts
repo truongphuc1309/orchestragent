@@ -13,6 +13,7 @@ dependencies {
     // Integration tests replace ports of the contexts (for example the mail sender) with mocks.
     testImplementation(project(":backend:identity:identity-application"))
     testImplementation(project(":backend:workspace:workspace-application"))
+    testImplementation(project(":backend:issue:issue-contract"))
     testImplementation(libs.spring.boot.starter.webmvc.test)
     testImplementation(libs.spring.boot.starter.security.test)
     testImplementation(libs.spring.boot.testcontainers)

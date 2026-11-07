@@ -62,6 +62,13 @@
     --color-lozenge-discovery: var(--lozenge-discovery);
     --color-lozenge-discovery-foreground: var(--lozenge-discovery-foreground);
 
+    /* Issue priority icons */
+    --color-priority-urgent: var(--priority-urgent);
+    --color-priority-high: var(--priority-high);
+    --color-priority-medium: var(--priority-medium);
+    --color-priority-low: var(--priority-low);
+    --color-priority-none: var(--priority-none);
+
     /* Radius: about 3px for controls, 4px for cards and dialogs */
     --radius-sm: calc(var(--radius) * 0.5);
     --radius-md: calc(var(--radius) * 0.8);
@@ -129,6 +136,12 @@
     --lozenge-discovery: #dfd8fd;
     --lozenge-discovery-foreground: #5e4db2;
 
+    --priority-urgent: #c9372c;
+    --priority-high: #e56910;
+    --priority-medium: #e2b203;
+    --priority-low: #388bff;
+    --priority-none: #8590a2;
+
     --elevation-raised: 0 1px 1px #091e4240, 0 0 1px #091e424f;
     --elevation-overlay: 0 8px 12px #091e4226, 0 0 1px #091e424f;
 }
@@ -184,6 +197,12 @@
     --lozenge-danger-foreground: #fd9891;
     --lozenge-discovery: #352c63;
     --lozenge-discovery-foreground: #b8acf6;
+
+    --priority-urgent: #f15b50;
+    --priority-high: #f38a3f;
+    --priority-medium: #f5cd47;
+    --priority-low: #579dff;
+    --priority-none: #8c9bab;
 
     --elevation-raised: 0 1px 1px #03040442, 0 0 1px #03040480;
     --elevation-overlay: 0 8px 12px #0304045c, 0 0 1px #03040480;

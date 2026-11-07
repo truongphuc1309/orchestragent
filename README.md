@@ -4,8 +4,8 @@ People and AI agents working on the same issues. Assign an issue to an agent lik
 teammate: a local daemon picks up the task, runs Claude Code CLI on your machine, streams progress in
 real time, and moves the issue to review for a human to approve.
 
-> Status: step 4 of `PLAN.md` (workspaces and members) is implemented on top of steps 1 to 3. Steps 2 to 4
-> are awaiting human review. The issue, agent and inbox contexts are still empty.
+> Status: step 5 of `PLAN.md` (issues, board and comments) is implemented on top of steps 1 to 4. Steps 2 to 5
+> are awaiting human review. The agent and inbox contexts are still empty.
 
 ## Requirements
 
@@ -63,6 +63,23 @@ REST: `GET|POST /api/workspaces`, `GET /api/workspaces/{id}`, `GET /api/workspac
 `DELETE /api/workspaces/{id}/invitations/{invitationId}`, `GET /api/invitations`,
 `POST /api/invitations/{id}/accept`. Each context owns its Postgres schema (`workspace` here) and no foreign key
 crosses schemas; a test enforces this.
+
+### Issues, board and comments (step 5)
+
+Every workspace member can create, edit, assign, move and comment on issues; only the creator, admins and owners
+delete one. Issue numbers (`ORC-12`; the prefix comes from the workspace slug) count up per workspace. Status is one of
+`backlog, todo, in_progress, in_review, done, blocked, cancelled` (any status may follow any other); priority is one of
+`none, low, medium, high, urgent`. Issues can only be assigned to members until agents arrive in step 7.
+
+REST under `/api/workspaces/{id}/issues`: `GET` (filters `status`, `priority`, `assignee`, `unassigned`, `limit`; returns
+`{items, total}`, newest first, at most 1000), `POST`, `GET /{issueId}`, `GET /number/{n}`, `PATCH /{issueId}`,
+`PUT /{issueId}/assignee`, `POST /{issueId}/move` (`{status, aboveId, belowId}`: the server computes the position between
+the two neighbours and renumbers a column when they get too close; a stale drop answers `409 issue.stale_move`),
+`DELETE /{issueId}`, and `GET|POST /{issueId}/comments`. Other contexts hear about changes through the integration
+events `IssueCreated`, `IssueUpdated`, `IssueAssigneeChanged`, `IssueDeleted` and `CommentAdded` (module `issue-contract`).
+
+The web app has a six-column board (drag with mouse, touch or keyboard), a list view, filters that are remembered per
+workspace, a create dialog and an issue page with inline editing, a properties panel and a comment timeline.
 
 ### Frontend (step 3)
 
