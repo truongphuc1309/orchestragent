@@ -22,6 +22,7 @@ function liveServer() {
     'GET /api/workspaces': () => json(200, [ACME, GLOBEX]),
     [`GET /api/workspaces/${ACME.id}/members`]: () => json(200, []),
     [`GET /api/workspaces/${ACME.id}/agents`]: () => json(200, []),
+    [`GET /api/workspaces/${ACME.id}/tasks?issueId=${FIRST.id}`]: () => json(200, []),
     [`GET ${ISSUES}?limit=500`]: () => json(200, { items: state.issues, total: state.issues.length }),
     [`GET ${ISSUES}/number/1`]: () =>
       state.detailGone ? problem(404, { code: 'issue.not_found' }) : json(200, state.detail),

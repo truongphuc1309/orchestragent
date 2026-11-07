@@ -4,8 +4,8 @@ People and AI agents working on the same issues. Assign an issue to an agent lik
 teammate: a local daemon picks up the task, runs Claude Code CLI on your machine, streams progress in
 real time, and moves the issue to review for a human to approve.
 
-> Status: step 7 of `PLAN.md` (agents and runtimes, server side and web app) is implemented on top of steps 1 to 6. Steps 2 to 7
-> are awaiting human review. The inbox context is still empty and there is no daemon yet.
+> Status: step 8 of `PLAN.md` (task queue, daemon API and review gate) is implemented on top of steps 1 to 7. Steps 2 to 8
+> are awaiting human review (steps 2 and 8 change authentication and the daemon API). The inbox context is still empty and the daemon program itself does not exist yet: the daemon API is tested with simulated HTTP calls.
 
 ## Requirements
 
@@ -116,6 +116,41 @@ Issues can be assigned to agents: the issue context asks the agent context throu
 (`agent-contract`: `AgentDirectory`), and the assignee picker of the web app lists members and agents (agents with
 the purple spark). The web app has Agents and Runtimes pages; the Runtimes page also explains how to connect a
 computer.
+
+### Agent tasks, the daemon API and the review gate (step 8)
+
+A **task** is one run of an agent on an issue. Tasks are made from what happens on issues (the rules are in
+`TaskPlanner`, one test per row of the table in `PLAN.md`): assigning an issue to an agent queues a task unless the
+issue is done or cancelled; a person's comment queues one unless one is already waiting; sending work back from
+review queues one (trigger `changes_requested`); comments of agents and of the system never do, so agents cannot set
+each other off in a loop; unassigning, reassigning or deleting cancels the agent's tasks, and so does archiving the
+agent. An issue never has two waiting tasks (a partial unique index), and every event makes at most one task (the task
+remembers its source event), because events are delivered at least once.
+
+A task goes `queued` → `dispatched` (a daemon claimed it and has 60 seconds to start it) → `running` →
+`completed`, `failed` or `cancelled`. A job (every 30 seconds) puts unstarted claims back in the queue, and fails
+running tasks of runtimes that went offline (`runtime_offline`). Claiming is one SQL statement with
+`FOR UPDATE SKIP LOCKED`: two daemons polling at once never get the same task, and one issue never runs twice at once.
+The calls a daemon repeats when its network drops (start, complete, fail, messages) are safe to repeat, and reports
+for a task that was cancelled are accepted and ignored; the daemon learns about the cancellation from `status`.
+
+**Daemon API** (`/api/daemon/**`, API tokens only, wire format in `daemon-protocol`): `GET /workspaces`,
+`POST /register`, `/heartbeat`, `/deregister`, `POST /tasks/claim`, `POST /tasks/{id}/start`, `/messages`,
+`/complete`, `/fail`, `GET /tasks/{id}/status`. Every call acts for the owner of the token and only reaches what they
+own; someone else's runtime or task is "not found". A person who left the workspace gets no more work. A claim hands
+over the agent (name, instructions, model), the issue, its comments and, when the agent worked on the issue before,
+the session and folder to resume.
+
+**Review gate**: when a task completes, the agent's result becomes a comment of the agent and the issue moves to
+"in review"; when it fails, a system comment says why and the issue moves to "blocked"; when it starts, the issue moves
+to "in progress". An agent can never mark an issue done: a member calls `POST /issues/{id}/approve` (done) or
+`POST /issues/{id}/request-changes {comment}` (back to "to do", the comment is required and starts a new run). Both need
+the issue to be in review.
+
+Web API under `/api/workspaces/{id}/tasks`: `GET ?issueId=`, `GET /{taskId}/messages?after=`, `POST /{taskId}/cancel`,
+`POST /{taskId}/retry`. The issue page has an "Agent runs" panel (state, duration, tokens, cost, the live log, Cancel
+and Retry) and, for an issue in review, the review bar. The live updates of step 6 carry `task.updated` and
+`task.message`.
 
 ### Frontend (step 3)
 

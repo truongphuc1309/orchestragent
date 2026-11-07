@@ -78,6 +78,15 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
+    void aLostRaceOnTheSameRowMapsTo409AndAsksToTryAgain() throws Exception {
+        mvc.perform(get("/optimistic"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("conflict"))
+                .andExpect(jsonPath("$.detail").value(org.hamcrest.Matchers.containsString("try again")))
+                .andExpect(jsonPath("$.detail").value(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("agent_tasks"))));
+    }
+
+    @Test
     void unexpectedErrorsDoNotLeakDetails() throws Exception {
         mvc.perform(get("/boom"))
                 .andExpect(status().isInternalServerError())
@@ -122,6 +131,11 @@ class GlobalExceptionHandlerTest {
         void integrity() {
             throw new org.springframework.dao.DataIntegrityViolationException(
                     "duplicate key value violates unique constraint \"members_pkey\"");
+        }
+
+        @GetMapping("/optimistic")
+        void optimistic() {
+            throw new org.springframework.orm.ObjectOptimisticLockingFailureException("agent_tasks", "some-id");
         }
 
         @GetMapping("/boom")

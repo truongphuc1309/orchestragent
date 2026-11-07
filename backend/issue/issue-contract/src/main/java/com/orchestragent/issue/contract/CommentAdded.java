@@ -7,7 +7,9 @@ import java.util.UUID;
 
 /**
  * A comment was added. Only comments written by a person may start agent work; {@code authorType} lets
- * listeners tell them apart. {@code authorId} is null for {@code SYSTEM} comments.
+ * listeners tell them apart. {@code authorId} is null for {@code SYSTEM} comments. {@code changesRequested}
+ * marks the comment a reviewer wrote when sending an issue back from review: the agent is then asked to
+ * rework its result, not just to answer a comment.
  */
 public record CommentAdded(
         UUID eventId,
@@ -16,7 +18,8 @@ public record CommentAdded(
         UUID issueId,
         UUID commentId,
         ActorType authorType,
-        UUID authorId)
+        UUID authorId,
+        boolean changesRequested)
         implements DomainEvent {
 
     public CommentAdded {

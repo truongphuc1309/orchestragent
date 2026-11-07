@@ -52,6 +52,10 @@ final class IssueDtos {
     record MoveRequest(@NotNull String status, UUID aboveId, UUID belowId) {
     }
 
+    /** The reviewer's comment is required: sending work back without saying why helps nobody. */
+    record RequestChangesRequest(@NotBlank @Size(max = 10_000) String comment) {
+    }
+
     record CommentRequest(@NotBlank @Size(max = 10_000) String body) {
     }
 

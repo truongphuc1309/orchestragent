@@ -1,6 +1,7 @@
 package com.orchestragent.issue.infrastructure.adapter.in.web;
 
 import com.orchestragent.issue.application.IssueService;
+import com.orchestragent.issue.application.ReviewService;
 import com.orchestragent.issue.application.IssueService.CreateIssue;
 import com.orchestragent.issue.application.IssueService.UpdateIssue;
 import com.orchestragent.issue.domain.IssueFilter;
@@ -11,6 +12,7 @@ import com.orchestragent.issue.infrastructure.adapter.in.web.IssueDtos.CreateIss
 import com.orchestragent.issue.infrastructure.adapter.in.web.IssueDtos.IssueListResponse;
 import com.orchestragent.issue.infrastructure.adapter.in.web.IssueDtos.IssueResponse;
 import com.orchestragent.issue.infrastructure.adapter.in.web.IssueDtos.MoveRequest;
+import com.orchestragent.issue.infrastructure.adapter.in.web.IssueDtos.RequestChangesRequest;
 import com.orchestragent.issue.infrastructure.adapter.in.web.IssueDtos.UpdateIssueRequest;
 import com.orchestragent.platform.security.CurrentUser;
 import jakarta.validation.Valid;
@@ -38,9 +40,11 @@ class IssueController {
     private static final int DEFAULT_LIMIT = 500;
 
     private final IssueService issues;
+    private final ReviewService review;
 
-    IssueController(IssueService issues) {
+    IssueController(IssueService issues, ReviewService review) {
         this.issues = issues;
+        this.review = review;
     }
 
     /** Filters: repeat or comma-separate {@code status}, {@code priority} and {@code assignee}. */
@@ -116,6 +120,22 @@ class IssueController {
             @Valid @RequestBody MoveRequest request) {
         return IssueResponse.from(issues.move(
                 user.id(), workspaceId, issueId, Status.fromCode(request.status()), request.aboveId(), request.belowId()));
+    }
+
+    /** The review gate: a person accepts the agent's work and the issue is done. */
+    @PostMapping("/{issueId}/approve")
+    IssueResponse approve(CurrentUser user, @PathVariable UUID workspaceId, @PathVariable UUID issueId) {
+        return IssueResponse.from(review.approve(user.id(), workspaceId, issueId));
+    }
+
+    /** The review gate: a person sends the work back with a comment, and the agent is asked to rework it. */
+    @PostMapping("/{issueId}/request-changes")
+    IssueResponse requestChanges(
+            CurrentUser user,
+            @PathVariable UUID workspaceId,
+            @PathVariable UUID issueId,
+            @Valid @RequestBody RequestChangesRequest request) {
+        return IssueResponse.from(review.requestChanges(user.id(), workspaceId, issueId, request.comment()));
     }
 
     @DeleteMapping("/{issueId}")

@@ -97,7 +97,15 @@ class EventStreamApiTest extends IntegrationTest {
         }
     }
 
+    /**
+     * The events of the stream, without the keep-alive heartbeats: the hub sends those on a timer to every open
+     * stream, so they can show up in any test at any moment and say nothing about what the test is checking.
+     */
     private static List<Received> received(MvcResult stream) throws Exception {
+        return everything(stream).stream().filter(event -> !event.name().equals("heartbeat")).toList();
+    }
+
+    private static List<Received> everything(MvcResult stream) throws Exception {
         List<Received> events = new ArrayList<>();
         for (String block : stream.getResponse().getContentAsString().split("\n\n")) {
             String name = null;
@@ -141,7 +149,8 @@ class EventStreamApiTest extends IntegrationTest {
 
         hub.sendHeartbeats();
 
-        awaitNames(stream, "heartbeat");
+        await().atMost(PATIENCE).untilAsserted(() ->
+                assertThat(everything(stream)).extracting(Received::name).contains("heartbeat"));
     }
 
     @Test

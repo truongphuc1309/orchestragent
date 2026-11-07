@@ -27,7 +27,13 @@ class CommentRepositoryAdapter implements CommentRepository {
                 comment.authorType().code(),
                 comment.authorId(),
                 comment.body(),
-                comment.createdAt()));
+                comment.createdAt(),
+                comment.sourceEventId()));
+    }
+
+    @Override
+    public boolean existsBySourceEvent(UUID eventId) {
+        return jpa.existsBySourceEventId(eventId);
     }
 
     @Override
@@ -45,6 +51,7 @@ class CommentRepositoryAdapter implements CommentRepository {
                 ActorType.fromCode(entity.getAuthorType()),
                 entity.getAuthorId(),
                 entity.getBody(),
-                entity.getCreatedAt());
+                entity.getCreatedAt(),
+                entity.getSourceEventId());
     }
 }

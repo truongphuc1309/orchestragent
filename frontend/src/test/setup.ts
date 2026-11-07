@@ -1,4 +1,5 @@
 import '@testing-library/jest-dom/vitest'
+import { toast } from 'sonner'
 import { vi } from 'vitest'
 import { useLastWorkspace } from '@/features/workspace/lastWorkspace'
 import { FakeEventSource } from './fakeEventSource'
@@ -36,4 +37,6 @@ beforeEach(() => {
   // every test because tests call vi.unstubAllGlobals().
   vi.stubGlobal('EventSource', FakeEventSource)
   FakeEventSource.reset()
+  // Toasts live in a global store, so one still on screen from the previous test would show up in this one.
+  toast.dismiss()
 })

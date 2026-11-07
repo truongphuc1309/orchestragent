@@ -38,14 +38,21 @@ public class AgentService {
     private final RuntimeRepository runtimes;
     private final WorkspaceAccess access;
     private final UserDirectory users;
+    private final AgentTaskControl taskControl;
     private final Clock clock;
 
     AgentService(
-            AgentRepository agents, RuntimeRepository runtimes, WorkspaceAccess access, UserDirectory users, Clock clock) {
+            AgentRepository agents,
+            RuntimeRepository runtimes,
+            WorkspaceAccess access,
+            UserDirectory users,
+            AgentTaskControl taskControl,
+            Clock clock) {
         this.agents = agents;
         this.runtimes = runtimes;
         this.access = access;
         this.users = users;
+        this.taskControl = taskControl;
         this.clock = clock;
     }
 
@@ -90,7 +97,10 @@ public class AgentService {
                 ? agent.runtimeId()
                 : requireOwnRuntime(workspaceId, userId, details.runtimeId());
 
-        agent.changeRuntime(runtime);
+        if (agent.changeRuntime(runtime)) {
+            // Work waiting for the agent follows it to its new computer.
+            taskControl.moveQueuedTasks(agent.id(), runtime);
+        }
         agent.rename(name);
         agent.changeInstructions(details.instructions());
         agent.changeModel(details.model());
@@ -103,6 +113,8 @@ public class AgentService {
         Agent agent = loadManageable(userId, workspaceId, agentId);
         if (agent.archive(clock.instant())) {
             agents.save(agent);
+            // An archived agent does no more work: whatever it was doing or waiting to do is cancelled.
+            taskControl.cancelAllTasksOf(agent.id());
         }
         return view(agent);
     }

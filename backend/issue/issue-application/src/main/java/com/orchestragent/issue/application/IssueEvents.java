@@ -43,6 +43,11 @@ class IssueEvents {
     }
 
     void updated(Issue issue, Set<String> changedFields, UUID actorId) {
+        updated(issue, changedFields, ActorType.MEMBER, actorId);
+    }
+
+    /** For changes an agent causes: {@code actorType} says who, {@code actorId} is the agent. */
+    void updated(Issue issue, Set<String> changedFields, ActorType actorType, UUID actorId) {
         publisher.publishEvent(new IssueUpdated(
                 UuidV7.next(),
                 clock.instant(),
@@ -50,7 +55,7 @@ class IssueEvents {
                 issue.id().value(),
                 changedFields,
                 issue.status().code(),
-                ActorType.MEMBER,
+                actorType,
                 actorId));
     }
 
@@ -75,6 +80,11 @@ class IssueEvents {
     }
 
     void commentAdded(Comment comment) {
+        commentAdded(comment, false);
+    }
+
+    /** {@code changesRequested}: a reviewer wrote it when sending the issue back from review. */
+    void commentAdded(Comment comment, boolean changesRequested) {
         publisher.publishEvent(new CommentAdded(
                 UuidV7.next(),
                 clock.instant(),
@@ -82,7 +92,8 @@ class IssueEvents {
                 comment.issueId().value(),
                 comment.id().value(),
                 contract(comment.authorType()),
-                comment.authorId()));
+                comment.authorId(),
+                changesRequested));
     }
 
     private static ActorType contract(Actor actor) {

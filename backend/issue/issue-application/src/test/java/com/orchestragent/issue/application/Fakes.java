@@ -108,6 +108,11 @@ final class Fakes {
         }
 
         @Override
+        public boolean existsBySourceEvent(UUID eventId) {
+            return stored.stream().anyMatch(comment -> eventId.equals(comment.sourceEventId()));
+        }
+
+        @Override
         public List<Comment> findByIssue(UUID workspaceId, IssueId issueId) {
             return stored.stream()
                     .filter(c -> c.workspaceId().equals(workspaceId) && c.issueId().equals(issueId))

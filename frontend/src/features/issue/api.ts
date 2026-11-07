@@ -82,6 +82,20 @@ export function moveIssue(workspaceId: string, issueId: string, target: MoveTarg
   })
 }
 
+/** The review gate: accepts the agent's work (the issue was in review) and the issue is done. */
+export function approveIssue(workspaceId: string, issueId: string): Promise<Issue> {
+  return apiRequest(`${base(workspaceId)}/${issueId}/approve`, { method: 'POST', schema: issueSchema })
+}
+
+/** The review gate: sends the work back with a comment (required); the issue returns to to-do. */
+export function requestChanges(workspaceId: string, issueId: string, comment: string): Promise<Issue> {
+  return apiRequest(`${base(workspaceId)}/${issueId}/request-changes`, {
+    method: 'POST',
+    body: { comment },
+    schema: issueSchema,
+  })
+}
+
 export function deleteIssue(workspaceId: string, issueId: string): Promise<void> {
   return apiRequest(`${base(workspaceId)}/${issueId}`, { method: 'DELETE', schema: z.undefined() })
 }

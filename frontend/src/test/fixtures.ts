@@ -1,3 +1,4 @@
+import type { Task, TaskMessage } from '@/features/task/schemas'
 import type { Agent, Runtime } from '@/features/agent/schemas'
 import type { Comment, Issue } from '@/features/issue/schemas'
 import type { Invitation, Member, Workspace } from '@/features/workspace/schemas'
@@ -103,4 +104,32 @@ export function agent(overrides: Partial<Agent> & Pick<Agent, 'id' | 'name'>): A
     createdAt: '2026-01-06T10:00:00Z',
     ...overrides,
   }
+}
+
+export function taskId(n: number): string {
+  return `0198f1c0-0000-7000-8000-0000000005${String(n).padStart(2, '0')}`
+}
+
+export function task(overrides: Partial<Task> & Pick<Task, 'id' | 'issueId'>): Task {
+  return {
+    agentId: agentId(1),
+    agentName: 'Builder',
+    runtime: { id: runtimeId(1), deviceName: "Ada's laptop", provider: 'claude', status: 'online' },
+    trigger: 'assigned',
+    status: 'queued',
+    attempt: 1,
+    error: null,
+    failureReason: null,
+    inputTokens: null,
+    outputTokens: null,
+    costUsd: null,
+    createdAt: '2026-01-08T10:00:00Z',
+    startedAt: null,
+    finishedAt: null,
+    ...overrides,
+  }
+}
+
+export function taskMessage(seq: number, type: TaskMessage['type'], content: string): TaskMessage {
+  return { seq, type, content, createdAt: '2026-01-08T10:00:05Z' }
 }

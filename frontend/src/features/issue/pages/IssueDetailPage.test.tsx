@@ -44,6 +44,7 @@ function handlers(overrides: Record<string, (request: RecordedRequest) => Respon
     'GET /api/workspaces': () => json(200, [workspace]),
     [`GET /api/workspaces/${ACME.id}/members`]: () => json(200, MEMBERS),
     [AGENTS]: () => json(200, AGENT_LIST),
+    [`GET /api/workspaces/${ACME.id}/tasks?issueId=${ISSUE.id}`]: () => json(200, []),
     [`GET ${BASE}/number/7`]: () => json(200, ISSUE),
     [`GET ${BASE}/${ISSUE.id}/comments`]: () => json(200, COMMENTS),
     ...overrides,

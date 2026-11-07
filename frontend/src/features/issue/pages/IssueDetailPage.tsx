@@ -5,11 +5,13 @@ import { useWorkspace } from '@/features/workspace/workspaceContext'
 import { ApiError, messageOf } from '@/shared/api/errors'
 import { Button } from '@/shared/ui/button'
 import { Skeleton } from '@/shared/ui/skeleton'
+import { AgentRunsPanel } from '@/features/task/components/AgentRunsPanel'
 import { CommentFormView } from '../components/CommentForm'
 import { CommentTimeline } from '../components/CommentTimeline'
 import { InlineDescription } from '../components/InlineDescription'
 import { InlineTitle } from '../components/InlineTitle'
 import { IssueProperties } from '../components/IssueProperties'
+import { ReviewBar } from '../components/ReviewBar'
 import { useIssue, useUpdateIssue } from '../hooks'
 import { issueKey } from '../key'
 
@@ -83,6 +85,8 @@ export function IssueDetailPage() {
               onSave={(description) => save({ description }, 'Could not save the description.')}
             />
           </section>
+          <ReviewBar workspaceId={workspace.id} issue={data} />
+          <AgentRunsPanel workspaceId={workspace.id} issueId={data.id} />
           <section aria-labelledby="comments-heading" className="flex flex-col gap-4">
             <h2 id="comments-heading" className="text-base font-semibold">
               Comments

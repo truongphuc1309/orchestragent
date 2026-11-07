@@ -96,6 +96,12 @@ export const commentFormSchema = z.object({
 })
 export type CommentForm = z.infer<typeof commentFormSchema>
 
+/** Sending work back from review: what should change is required. */
+export const requestChangesFormSchema = z.object({
+  comment: z.string().trim().min(1, 'Say what should change').max(MAX_COMMENT, `Use at most ${MAX_COMMENT} characters`),
+})
+export type RequestChangesForm = z.infer<typeof requestChangesFormSchema>
+
 /** A member (user ID) or an agent (agent ID) an issue is assigned to. */
 export interface AssigneeRef {
   type: 'member' | 'agent'

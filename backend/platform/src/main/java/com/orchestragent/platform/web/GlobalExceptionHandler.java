@@ -11,6 +11,7 @@ import jakarta.validation.ConstraintViolationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
@@ -57,6 +58,16 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     ResponseEntity<ProblemDetail> handleDataIntegrity(DataIntegrityViolationException e) {
         log.warn("Data integrity violation: {}", e.getMostSpecificCause().getMessage());
         return problem(HttpStatus.CONFLICT, "The change conflicts with existing data. Please try again.", "conflict");
+    }
+
+    /**
+     * Someone else changed the same row between this request reading and writing it (two people cancelling and
+     * completing a task at once, for example). Nothing was overwritten; asking again works.
+     */
+    @ExceptionHandler(OptimisticLockingFailureException.class)
+    ResponseEntity<ProblemDetail> handleOptimisticLock(OptimisticLockingFailureException e) {
+        log.info("Optimistic lock conflict: {}", e.getMessage());
+        return problem(HttpStatus.CONFLICT, "Someone else changed this at the same time. Please try again.", "conflict");
     }
 
     @ExceptionHandler(AccessDeniedException.class)

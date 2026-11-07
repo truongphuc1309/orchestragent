@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   addComment,
+  approveIssue,
   assignIssue,
   createIssue,
   deleteIssue,
@@ -8,6 +9,7 @@ import {
   listComments,
   listIssues,
   moveIssue,
+  requestChanges,
   updateIssue,
   type IssueChanges,
 } from './api'
@@ -121,5 +123,35 @@ export function useAddComment(workspaceId: string, issueId: string) {
   return useMutation({
     mutationFn: (body: string) => addComment(workspaceId, issueId, body),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: issueKeys.comments(workspaceId, issueId) }),
+  })
+}
+
+/**
+ * The review gate. Approving or sending work back changes the issue and, for a send-back, adds a comment and
+ * starts a new run of the agent, so all of those refresh.
+ */
+function useRefreshAfterReview(workspaceId: string) {
+  const queryClient = useQueryClient()
+  const sync = useSyncIssue(workspaceId)
+  return async (issue: Issue) => {
+    await sync(issue)
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: issueKeys.comments(workspaceId, issue.id) }),
+      queryClient.invalidateQueries({ queryKey: ['workspaces', workspaceId, 'tasks'] }),
+    ])
+  }
+}
+
+export function useApproveIssue(workspaceId: string) {
+  const refresh = useRefreshAfterReview(workspaceId)
+  return useMutation({ mutationFn: (issueId: string) => approveIssue(workspaceId, issueId), onSuccess: refresh })
+}
+
+export function useRequestChanges(workspaceId: string) {
+  const refresh = useRefreshAfterReview(workspaceId)
+  return useMutation({
+    mutationFn: ({ issueId, comment }: { issueId: string; comment: string }) =>
+      requestChanges(workspaceId, issueId, comment),
+    onSuccess: refresh,
   })
 }

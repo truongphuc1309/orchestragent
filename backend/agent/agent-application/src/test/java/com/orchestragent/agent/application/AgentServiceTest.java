@@ -10,6 +10,9 @@ import com.orchestragent.agent.application.Fakes.InMemoryAgents;
 import com.orchestragent.agent.application.Fakes.InMemoryRuntimes;
 import com.orchestragent.agent.application.Fakes.MutableClock;
 import com.orchestragent.agent.application.RuntimeService.ProviderInfo;
+import com.orchestragent.agent.application.TaskFakes.RecordingTaskControl;
+import com.orchestragent.agent.domain.AgentId;
+import com.orchestragent.agent.domain.RuntimeId;
 import com.orchestragent.agent.application.Views.AgentView;
 import com.orchestragent.agent.contract.AgentDirectory;
 import com.orchestragent.agent.contract.AgentSummary;
@@ -32,7 +35,8 @@ class AgentServiceTest {
     private final FakeAccess access = new FakeAccess();
     private final FakeUsers users = new FakeUsers();
     private final MutableClock clock = new MutableClock();
-    private final AgentService service = new AgentService(agents, runtimes, access, users, clock);
+    private final RecordingTaskControl taskControl = new RecordingTaskControl();
+    private final AgentService service = new AgentService(agents, runtimes, access, users, taskControl, clock);
     private final RuntimeService runtimeService = new RuntimeService(runtimes, access, users, clock);
     private final AgentDirectory directory = new AgentDirectoryService(agents);
 
@@ -314,6 +318,37 @@ class AgentServiceTest {
         assertThat(service.archive(admin.id(), workspace, second.id()).archived()).isTrue();
         assertThat(service.archive(owner.id(), workspace, third.id()).archived()).isTrue();
         assertThat(service.list(mia.id(), workspace, false)).isEmpty();
+    }
+
+    @Test
+    void archivingAnAgentCancelsItsTasksButArchivingTwiceDoesNotDoItAgain() {
+        AgentView agent = createByMia("Builder");
+
+        service.archive(mia.id(), workspace, agent.id());
+        service.archive(mia.id(), workspace, agent.id());
+
+        assertThat(taskControl.cancelled).containsExactly(new AgentId(agent.id()));
+    }
+
+    @Test
+    void anAgentThatMovesToAnotherRuntimeTakesItsWaitingTasksAlong() {
+        AgentView agent = createByMia("Builder");
+        UUID second = runtimeService
+                .register(mia.id(), workspace, "mia-laptop", "Mia's laptop", List.of(new ProviderInfo("claude", "1.0")))
+                .getFirst().id();
+
+        service.update(mia.id(), workspace, agent.id(), new AgentDetails("Builder", "", second, null));
+
+        assertThat(taskControl.moved).containsEntry(new AgentId(agent.id()), new RuntimeId(second));
+    }
+
+    @Test
+    void savingAnAgentOnTheSameRuntimeMovesNothing() {
+        AgentView agent = createByMia("Builder");
+
+        service.update(mia.id(), workspace, agent.id(), new AgentDetails("Builder", "New text", miasRuntime, null));
+
+        assertThat(taskControl.moved).isEmpty();
     }
 
     @Test

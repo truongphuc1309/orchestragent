@@ -7,4 +7,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 interface CommentJpaRepository extends JpaRepository<CommentEntity, UUID> {
 
     List<CommentEntity> findByWorkspaceIdAndIssueIdOrderByCreatedAtAscIdAsc(UUID workspaceId, UUID issueId);
+
+    boolean existsBySourceEventId(UUID sourceEventId);
 }

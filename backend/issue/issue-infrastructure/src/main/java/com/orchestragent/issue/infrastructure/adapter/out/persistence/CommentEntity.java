@@ -34,11 +34,22 @@ class CommentEntity {
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
+    /** The event that caused the comment, or null for a comment someone wrote. */
+    @Column(name = "source_event_id")
+    private UUID sourceEventId;
+
     protected CommentEntity() {
     }
 
     CommentEntity(
-            UUID id, UUID workspaceId, UUID issueId, String authorType, UUID authorId, String body, Instant createdAt) {
+            UUID id,
+            UUID workspaceId,
+            UUID issueId,
+            String authorType,
+            UUID authorId,
+            String body,
+            Instant createdAt,
+            UUID sourceEventId) {
         this.id = id;
         this.workspaceId = workspaceId;
         this.issueId = issueId;
@@ -46,6 +57,7 @@ class CommentEntity {
         this.authorId = authorId;
         this.body = body;
         this.createdAt = createdAt;
+        this.sourceEventId = sourceEventId;
     }
 
     UUID getId() {
@@ -74,5 +86,9 @@ class CommentEntity {
 
     Instant getCreatedAt() {
         return createdAt;
+    }
+
+    UUID getSourceEventId() {
+        return sourceEventId;
     }
 }
