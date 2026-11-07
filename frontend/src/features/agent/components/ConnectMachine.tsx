@@ -1,9 +1,6 @@
 import { Link } from 'react-router'
 
-/**
- * How to make a computer show up in the list above. The daemon itself comes in a later release of the
- * project; the steps already say what it will need, so people can create their token ahead of time.
- */
+/** How to make a computer show up in the list above: a token, the daemon, and two commands. */
 export function ConnectMachine({ workspaceSlug }: { workspaceSlug: string }) {
   const server = window.location.origin
   return (
@@ -17,14 +14,16 @@ export function ConnectMachine({ workspaceSlug }: { workspaceSlug: string }) {
           <Link to={`/w/${workspaceSlug}/settings/tokens`}>API tokens page</Link>. It is shown only once, so copy it.
         </li>
         <li>
-          Install the Orchestragent daemon on the computer that should run agents. The daemon is not released yet; the
-          other steps will work as soon as it is.
+          Install the Orchestragent daemon on the computer that should run agents: in the project, run{' '}
+          <code>./gradlew :daemon:daemon-cli:installDist</code>. The program is then in{' '}
+          <code>daemon/daemon-cli/build/install/orchestragent-daemon/bin</code>.
         </li>
         <li>
-          Sign in and start it. It registers the AI tools it finds (such as Claude Code), and they appear in the list
-          above within a few seconds:
+          Sign in (it asks for the token) and start it. It registers the AI tools it finds (such as Claude Code), and
+          they appear in the list above within a few seconds. Add <code>--providers mock</code> to try it with the
+          built-in pretend agent, which calls no AI model.
           <pre className="mt-2 mb-0 overflow-x-auto rounded-md border bg-background p-3 text-xs">
-            {`login --server ${server} --token <your token>\nstart`}
+            {`orchestragent-daemon login --server ${server} --token\norchestragent-daemon start`}
           </pre>
         </li>
       </ol>

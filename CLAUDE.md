@@ -1,1 +1,132 @@
 @AGENTS.md
+
+# Project state and decisions
+
+Working notes for the next session. `AGENTS.md` has the rules, `PLAN.md` the plan (it is gitignored: it lives on
+disk only), `README.md` the user-facing description. This file records where the work stands and the decisions
+that the code alone does not explain.
+
+## Status
+
+Steps 0 to 8 of `PLAN.md` are implemented and **committed by the human**. **Step 9 (the daemon and the mock provider)
+is implemented and not committed yet** (waiting for the human's review). Next is step 10 (Claude Code provider), then
+11 (usage and inbox), 12 (E2E and docs).
+
+| Step | What | Commit |
+| ---- | ---- | ------ |
+| 0, 1 | Repo, Gradle, shared kernel, platform | `5f69aa8`, `cca378d` |
+| 2 | Email-code login, session cookie, API tokens (needs human review) | `e0afec2` |
+| 3 | Frontend skeleton, login page, Jira-style design tokens | `d3fdc0e` |
+| 4 | Workspaces, members, invitations, settings pages | `166c25f` |
+| 5 | Issues, kanban board (dnd-kit), list, comments | `a2d446f` |
+| 6 | Live updates over SSE | `70e393a` |
+| 7 | Agents, runtimes, assigning issues to agents | `ffe60a4` |
+| 8 | Task queue, daemon API, review gate (needs human review) | `e3f06fa` |
+| 9 | Daemon CLI, provider SPI, mock provider | not committed |
+
+Last full run (step 9): `./gradlew build` 781 tests (696 backend, 85 daemon), frontend 357 tests (26 files);
+`typecheck`, `lint`, `build` clean. The daemon was run by hand with the mock provider against the real app: assign →
+in progress → live log → agent comment → in review → request changes (resumed in the same folder) → approve → done;
+cancel of a hanging run; `[mock:fail]` → blocked. Ctrl+C (graceful stop) was **not** tried by hand: background
+processes in this harness can only be killed hard; `DaemonTest` covers it.
+
+## The daemon (step 9)
+
+- Modules: `daemon-provider-api` (SPI, package `com.orchestragent.daemon.provider`), `daemon-provider-mock`,
+  `daemon-cli` (packages `cli`, `cli.client`, `cli.config`, `cli.runner`). Jackson 3 (`tools.jackson`), picocli,
+  JDK `HttpClient`. Tests use a fake server on the JDK `HttpServer` (`cli.testing.FakeServer`, `FakeDaemonApi`, which
+  mimics the real server's rules) and the mock provider with a 5 ms step.
+- Run it by hand: `./gradlew :daemon:daemon-cli:installDist`, then `orchestragent-daemon.bat` in
+  `daemon/daemon-cli/build/install/orchestragent-daemon/bin`. Set `ORCHESTRAGENT_HOME` to a scratch folder so the
+  user's real `~/.orchestragent` is not touched. Use `--server http://localhost:8080`: Vite listens on `[::1]` only and
+  Java connects to `localhost` over IPv4. Stop the daemon before `installDist` again (Windows locks the jars).
+- Short task IDs (logs, folder names) are the **last** 8 characters: the first ones of a UUIDv7 are a timestamp.
+- A test that runs `start` must not be able to hang: `CommandsTest` wraps it in `assertTimeoutPreemptively`.
+- Known, not fixed: when a browser leaves a page, the backend logs `AuthorizationDeniedException ... response is
+  already committed` for the closing SSE stream (async dispatch goes through Spring Security again). Noise from
+  step 6, unrelated to the daemon.
+
+## Working agreements with this user
+
+- The user speaks Vietnamese; reply in Vietnamese. Code, comments, identifiers, logs and error messages stay English.
+- **Never run `git commit` or `git push`.** The user reviews and commits after each step, then says "Làm Bước N luôn".
+  Suggest a Conventional Commits message at the end of a step.
+- Each step ends with: build passes, tests pass, a manual check in the real app when the step has UI or runtime
+  behaviour, docs updated (`README.md`, `PLAN.md`), and a closing message with what was done, what was found, what
+  is not done or not verified.
+- Check that tests can fail: after writing tests for a rule, break the rule temporarily, see the test fail, restore.
+  Report only what was actually run.
+- Do not change an existing test just to make it pass. When behaviour changes on purpose, update the test and say why.
+
+## Environment (Windows)
+
+- `java` is not on PATH: `export JAVA_HOME="$USERPROFILE/.gradle/jdks/eclipse_adoptium-21-amd64-windows.2"`.
+- `pnpm` is not installed globally: `corepack pnpm@10.18.0 -C frontend <command>`.
+- Docker Desktop must run for integration tests (Testcontainers) and for `docker compose up -d` (Postgres, Mailpit).
+- `.env` has an empty `JWT_SECRET` and must not be edited. For manual runs pass a throwaway one in the environment
+  with `DEV_LOGIN_CODE=123456` and `--spring.profiles.active=dev` (that code logs in any address).
+- In this harness, long shell heredocs and commands full of backticks or nested quotes fail or get blocked. Create
+  and edit files with the Write and Edit tools. Shell state does not carry over: start every Gradle or pnpm command
+  with `cd` to the repo root.
+
+## Architecture decisions worth knowing
+
+- Modular monolith; each context (`identity`, `workspace`, `issue`, `agent`, `inbox`) has four layer modules and its own
+  Postgres schema and Flyway location. Migration order: platform 0, identity 10, workspace 20, issue 30, agent 40.
+  Contexts reach each other only through `*-contract` (facades: `WorkspaceAccess`, `WorkspaceDirectory`, `UserDirectory`,
+  `AgentDirectory`, `IssueDirectory`; integration events). ArchUnit and `SchemaIsolationTest` enforce it.
+- Event listeners (`@ApplicationModuleListener`) live in `*-infrastructure` and only forward to application services;
+  the logic and the idempotency are in `*-application`. `@EnableAsync` is on, so listeners run after commit on their
+  own thread: tests wait with Awaitility. `completion-mode: delete` keeps `event_publication` from growing.
+- Idempotency of events is by **source event**: a task and a comment that an event causes store its `source_event_id`
+  (unique). This replaces the `(issue_id, trigger, trigger_comment_id)` key of the plan.
+- Auth: passwordless email code; JWT in HttpOnly cookie `oa_session`; CSRF double-submit cookie. The daemon API
+  (`/api/daemon/**`) has its own filter chain: API tokens (`oat_...`) only, no cookies, no CSRF. A token is not a
+  browser session and a cookie is not a daemon token (both are tested). Outsiders get 404, not 403, on workspace
+  endpoints.
+- Workspace roles: owner manages anyone, admin manages members only, member nobody; always at least one owner.
+  `MemberPolicy` (backend) and `permissions.ts` (frontend) share hand-written truth tables.
+- Issues: any status may follow any other; the board has six columns (cancelled only in the list). Drag and drop sends
+  `{status, aboveId, belowId}` and the server computes a float `position` (renumbers a column when neighbours get too
+  close; a stale drop is 409 `issue.stale_move`). Only the creator, admins and owners delete an issue.
+- Agents: an agent runs work on the computer of whoever owns its runtime, so **a person can only point an agent at their
+  own runtime** (even an admin). Creator, admins and owners edit, archive, restore (`AgentPolicy`). Active names are
+  unique ignoring case (partial unique index). Archived agents cannot be assigned or edited, but keep their name.
+- Tasks: states `queued, dispatched, running, completed, failed, cancelled`. One queued task per issue (partial unique
+  index). Claim is one SQL statement with `FOR UPDATE SKIP LOCKED`; a task waits while another task of its issue is
+  dispatched or running. Lease is 60 s; runtimes silent for 90 s go offline; a job every 30 s requeues expired leases
+  and fails running tasks of offline runtimes (`runtime_offline`). `@Version` on `agent_tasks`. Daemon calls that
+  may be retried (start, complete, fail, messages) are idempotent; reports for a cancelled task are ignored.
+- Review gate: task started, issue to in progress; completed, the result becomes an agent comment and the issue goes to
+  in review; failed, a system comment and blocked. An agent can never mark an issue done. Any member approves or
+  sends back (comment required); both need the issue in review. The send-back comment carries `changesRequested` in
+  `CommentAdded`, so it causes exactly one task.
+- Realtime: `GET /api/workspaces/{id}/events` (members only). Events say only what changed (`issue.created|updated|deleted`,
+  `comment.created`, `task.updated`, `task.message`); the client invalidates queries and refetches. The `heartbeat`
+  event is a real event (browsers hide SSE comments), and the client treats 60 s of silence as a dead connection.
+- Frontend: every response is parsed with zod, no `as` and no `any` outside `shared/ui` (lint errors). Colours only as
+  tokens in `index.css` (a test forbids raw colours). Query keys always contain the workspace ID. `fakeServer` fails any
+  unhandled request, so tests that render a page must handle every request that page makes.
+
+## Known limitations and open points
+
+- The daemon has only the mock provider; the Claude Code provider is step 10. A daemon registers in the workspaces
+  its owner has when it starts; joining another workspace needs a restart.
+- Cancelling a task leaves the issue in its current status (usually in progress) until someone moves it.
+- `AgentTaskStarted` and `AgentTaskCompleted` are handled on different threads; in theory they can swap if they arrive
+  within milliseconds and leave the issue in progress. Not seen in practice.
+- Two events racing can make one listener hit a unique violation; Modulith redelivers and the next run skips it.
+- Not done: limits on invitations, workspaces and agents per user; mobile navigation (the sidebar is hidden below `md`);
+  unassigning issues of members who leave a workspace; usage and inbox (step 11); Playwright E2E (step 12).
+- Review focus for steps 2 and 8 (authentication and the daemon API): `DaemonSecurityConfig`, `DaemonController`,
+  `TaskExecutionService` (ownership and membership checks), the claim SQL in `TaskRepositoryAdapter`.
+
+## Pitfalls met in tests
+
+- MockMvc cannot exercise Tomcat's real async dispatch of SSE; that was checked by hand with two browser tabs.
+- Sonner toasts live in a global store; `test/setup.ts` dismisses them before each test.
+- `vi.unstubAllGlobals()` in a test removes the stubbed `EventSource`; `setup.ts` stubs it again before each test.
+- Scheduled SSE heartbeats can arrive in any open stream during a test; event assertions must ignore `heartbeat`.
+- `JsonPath.read` inside `String.valueOf(...)` picks the `char[]` overload: assign to an `Object` first.
+- The in-memory fakes in application tests keep object identity, so a service that changes an object before a check that
+  can fail leaves it changed; validate first, then change.

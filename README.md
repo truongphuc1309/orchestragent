@@ -4,8 +4,9 @@ People and AI agents working on the same issues. Assign an issue to an agent lik
 teammate: a local daemon picks up the task, runs Claude Code CLI on your machine, streams progress in
 real time, and moves the issue to review for a human to approve.
 
-> Status: step 8 of `PLAN.md` (task queue, daemon API and review gate) is implemented on top of steps 1 to 7. Steps 2 to 8
-> are awaiting human review (steps 2 and 8 change authentication and the daemon API). The inbox context is still empty and the daemon program itself does not exist yet: the daemon API is tested with simulated HTTP calls.
+> Status: step 9 of `PLAN.md` (the daemon and its mock provider) is implemented on top of steps 1 to 8. The daemon runs
+> agents with the mock provider; the Claude Code provider (step 10), usage and inbox (step 11) and the end-to-end tests
+> (step 12) are still to come.
 
 ## Requirements
 
@@ -151,6 +152,50 @@ Web API under `/api/workspaces/{id}/tasks`: `GET ?issueId=`, `GET /{taskId}/mess
 `POST /{taskId}/retry`. The issue page has an "Agent runs" panel (state, duration, tokens, cost, the live log, Cancel
 and Retry) and, for an issue in review, the review bar. The live updates of step 6 carry `task.updated` and
 `task.message`.
+
+### The daemon (step 9)
+
+The daemon is a plain Java command-line program (`daemon/daemon-cli`, picocli) that runs agents on your computer.
+Build and install it, create an API token in the web app (Settings > API tokens), then log in and start it:
+
+```bash
+./gradlew :daemon:daemon-cli:installDist
+daemon/daemon-cli/build/install/orchestragent-daemon/bin/orchestragent-daemon login --server http://localhost:8080 --token
+daemon/daemon-cli/build/install/orchestragent-daemon/bin/orchestragent-daemon doctor
+daemon/daemon-cli/build/install/orchestragent-daemon/bin/orchestragent-daemon start --providers mock
+```
+
+On Windows run `orchestragent-daemon.bat` from the same folder. In development give the backend's address
+(`http://localhost:8080`), not the Vite dev server's: Vite listens on IPv6 only (`[::1]:5173`), and Java connects to
+`localhost` over IPv4.
+
+- `login --server URL --token oat_...` checks the token with the server (`--no-verify` skips that) and saves
+  `~/.orchestragent/config.json` (server, token and a daemon ID made once), readable only by you (`rw-------`, or an
+  access list with only your account on Windows). `--token` without a value asks for it, so it stays out of the shell
+  history. Settings in the file that the daemon does not know are kept.
+- `doctor` lists the providers and whether each tool is installed, shows the login (never the token) and checks that
+  the server accepts it.
+- `start [--providers claude,mock] [--max-tasks 2] [--task-timeout 30] [--device-name NAME]` runs in the foreground.
+  Without `--providers` it uses every installed tool except the mock. It registers the providers in every workspace
+  of the token's owner (one runtime per provider), sends a heartbeat every 15 seconds and claims tasks every
+  3 seconds while it has free slots. Each task runs on its own thread: the daemon prepares its folder, writes the
+  prompt (agent instructions, the issue, its comments, what the run is for, and how to report), starts the task, runs
+  the provider, sends the log in batches every second and checks every 5 seconds whether the task was cancelled.
+  The result is reported with retries and backoff; all log lines are sent before it. Ctrl+C stops claiming, waits up to
+  30 seconds for running tasks, stops the rest (reported as failed, `daemon_stopped`) and takes the runtimes offline.
+- Task folders live under `~/.orchestragent/workspaces/<workspaceId>/<issueNumber>-<last 8 characters of the task ID>/`. A run that
+  continues earlier work gets the earlier folder back, and resumes the earlier session only there (AI tools keep
+  sessions per folder). A folder sent by the server is used only when it is inside the task's workspace folder.
+- `ORCHESTRAGENT_HOME` moves `~/.orchestragent` elsewhere (tests and demos).
+
+Providers implement `AgentProvider` (`daemon/daemon-provider-api`): `id()`, `detect()`, `run(request, listener,
+cancel)`, and are found with `java.util.ServiceLoader`, so a new tool is a new module with a
+`META-INF/services/com.orchestragent.daemon.provider.AgentProvider` file. The **mock provider** never calls a model:
+it pauses between steps (`ORCHESTRAGENT_MOCK_STEP_MS`, default 1000), sends four or five log lines, writes
+`mock-notes.md` in the task folder and answers with a text that names the issue. Put `[mock:fail]`, `[mock:hang]` or
+`[mock:crash]` in the issue title, description or a comment to make it fail, hang until cancelled or timed out, or
+throw; the last marker wins, so a later comment with `[mock:ok]` makes it succeed again. The Claude Code provider is
+step 10.
 
 ### Frontend (step 3)
 

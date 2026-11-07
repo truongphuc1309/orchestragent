@@ -85,8 +85,9 @@ describe('runtimes page', () => {
       throw new Error('The connect section is missing')
     }
     expect(within(section).getByRole('link', { name: 'API tokens page' })).toHaveAttribute('href', '/w/acme/settings/tokens')
-    expect(section).toHaveTextContent(`login --server ${window.location.origin} --token <your token>`)
-    expect(section).toHaveTextContent('not released yet')
+    expect(section).toHaveTextContent(`orchestragent-daemon login --server ${window.location.origin} --token`)
+    expect(section).toHaveTextContent('./gradlew :daemon:daemon-cli:installDist')
+    expect(section).toHaveTextContent('--providers mock')
     expect(section).toHaveTextContent('90 seconds')
   })
 
