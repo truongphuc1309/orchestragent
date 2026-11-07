@@ -2,7 +2,8 @@ import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { routes } from '@/app/routes'
-import { ACME, ADA, issue, issueId, MIA, member } from '@/test/fixtures'
+import { ACME, ADA, agent, agentId, issue, issueId, MIA, member } from '@/test/fixtures'
+import type { Agent } from '@/features/agent/schemas'
 import { fakeServer, json, problem } from '@/test/fakeServer'
 import { renderRoutes } from '@/test/render'
 import { NO_FILTERS, useIssueViewStore } from '../filters'
@@ -26,12 +27,16 @@ const ISSUES: Issue[] = [
 
 const ISSUES_PATH = `/api/workspaces/${ACME.id}/issues`
 const LIST = `GET ${ISSUES_PATH}?limit=500`
+const AGENTS = `GET /api/workspaces/${ACME.id}/agents`
+/** No agents unless a test puts some here. */
+let AGENTS_LIST: Agent[] = []
 
 function baseHandlers(items: Issue[] = ISSUES, total = items.length) {
   return {
     'GET /api/me': () => json(200, ADA),
     'GET /api/workspaces': () => json(200, [ACME]),
     [`GET /api/workspaces/${ACME.id}/members`]: () => json(200, MEMBERS),
+    [AGENTS]: () => json(200, AGENTS_LIST),
     [LIST]: () => json(200, { items, total }),
   }
 }
@@ -56,6 +61,7 @@ describe('issues page', () => {
   beforeEach(() => {
     document.cookie = 'XSRF-TOKEN=test-token; path=/'
     useIssueViewStore.setState({ view: 'board', filtersByWorkspace: {} })
+    AGENTS_LIST = []
   })
   afterEach(() => {
     vi.unstubAllGlobals()
@@ -223,6 +229,24 @@ describe('issues page', () => {
       expect(await screen.findByText('No issues match these filters.')).toBeInTheDocument()
     })
 
+    it('offers the agents of the workspace in the assignee filter and filters by their ID', async () => {
+      AGENTS_LIST = [agent({ id: agentId(1), name: 'Builder' })]
+      const filtered = `GET ${ISSUES_PATH}?assignee=${agentId(1)}&limit=500`
+      const server = fakeServer({
+        ...baseHandlers(),
+        [filtered]: () => json(200, { items: [], total: 0 }),
+      })
+      renderRoutes(routes, ['/w/acme/issues'])
+      const user = userEvent.setup()
+      await screen.findByText('Write the plan')
+
+      await user.click(screen.getByRole('button', { name: 'Assignee' }))
+      await user.click(await screen.findByRole('menuitemcheckbox', { name: 'Builder' }))
+
+      await waitFor(() => expect(server.calls(filtered)).toHaveLength(1))
+      expect(useIssueViewStore.getState().filtersByWorkspace[ACME.id]?.assignees).toEqual([agentId(1)])
+    })
+
     it('does not carry filters over to another workspace', async () => {
       useIssueViewStore.setState({ filtersByWorkspace: { 'some-other-workspace': { ...NO_FILTERS, statuses: ['done'] } } })
       fakeServer(baseHandlers())
@@ -298,6 +322,33 @@ describe('issues page', () => {
       const body = server.calls(`POST ${ISSUES_PATH}`)[0]?.body
       expect(body).toMatchObject({ title: 'Started', status: 'in_progress', priority: 'none' })
       expect(body).not.toHaveProperty('assignee')
+    })
+
+    it('assigns a new issue to an agent', async () => {
+      AGENTS_LIST = [agent({ id: agentId(1), name: 'Builder' })]
+      const created = issue({
+        id: issueId(9),
+        number: 9,
+        title: 'For the bot',
+        assignee: { type: 'agent', id: agentId(1), name: 'Builder' },
+      })
+      const server = fakeServer({ ...baseHandlers(), [`POST ${ISSUES_PATH}`]: () => json(201, created) })
+      renderRoutes(routes, ['/w/acme/issues'])
+      const user = userEvent.setup()
+      await screen.findByText('Write the plan')
+
+      await user.click(screen.getByRole('button', { name: 'Create issue' }))
+      const dialog = await screen.findByRole('dialog', { name: 'Create issue' })
+      await user.type(within(dialog).getByLabelText('Title'), 'For the bot')
+      await user.click(within(dialog).getByRole('combobox', { name: 'Assignee' }))
+      await user.click(await screen.findByRole('option', { name: 'Builder' }))
+      await user.click(within(dialog).getByRole('button', { name: 'Create' }))
+
+      await waitFor(() => expect(server.calls(`POST ${ISSUES_PATH}`)).toHaveLength(1))
+      expect(server.calls(`POST ${ISSUES_PATH}`)[0]?.body).toMatchObject({
+        title: 'For the bot',
+        assignee: { type: 'agent', id: agentId(1) },
+      })
     })
 
     it('shows the server error and keeps the dialog open', async () => {

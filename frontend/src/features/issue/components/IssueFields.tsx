@@ -1,5 +1,8 @@
 import type { Member } from '@/features/workspace/schemas'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/ui/select'
+import { Sparkles } from 'lucide-react'
+import type { Agent } from '@/features/agent/schemas'
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/shared/ui/select'
+import { decodeAssignee, encodeAssignee, UNASSIGNED } from '../assignee'
 import {
   PRIORITIES,
   PRIORITY_LABEL,
@@ -7,6 +10,7 @@ import {
   STATUSES,
   STATUS_LABEL,
   statusSchema,
+  type AssigneeRef,
   type Priority,
   type Status,
 } from '../schemas'
@@ -79,40 +83,70 @@ export function PrioritySelect({ value, onChange, label, disabled, className }: 
   )
 }
 
-/** Select value for "nobody": a member's ID is a UUID, so it can never collide with this. */
-const NOBODY = 'unassigned'
-
-/** Picks a member or nobody. {@code value} is a user ID, or null for unassigned. */
+/**
+ * Picks who an issue goes to: nobody, a member or an agent. Agents are marked with the purple spark so they
+ * are told apart from people at a glance. {@code value} is null for unassigned.
+ */
 export function AssigneeSelect({
   value,
   onChange,
   label,
   members,
+  agents,
   disabled,
   className,
   currentName,
-}: FieldProps<string | null> & {
+}: FieldProps<AssigneeRef | null> & {
   members: readonly Member[]
-  /** Name of the current assignee as the issue reports it; shown while the member list is still loading. */
+  /** Active agents; archived ones cannot be given work, so they are not offered. */
+  agents: readonly Agent[]
+  /** Name of the current assignee as the issue reports it; shown while the lists are still loading. */
   currentName?: string
 }) {
-  const selected = members.find((member) => member.userId === value)
+  const shown = (() => {
+    if (value === null) {
+      return 'Unassigned'
+    }
+    const known =
+      value.type === 'agent'
+        ? agents.find((agent) => agent.id === value.id)?.name
+        : members.find((member) => member.userId === value.id)?.name
+    return known ?? currentName ?? (value.type === 'agent' ? 'Unknown agent' : 'Unknown user')
+  })()
+
   return (
     <Select
-      value={value ?? NOBODY}
+      value={encodeAssignee(value)}
       disabled={disabled}
-      onValueChange={(next) => onChange(next === NOBODY ? null : next)}
+      onValueChange={(next) => onChange(decodeAssignee(next))}
     >
       <SelectTrigger aria-label={label} className={className}>
-        <SelectValue>{value === null ? 'Unassigned' : (selected?.name ?? currentName ?? 'Unknown user')}</SelectValue>
+        <SelectValue>
+          {value?.type === 'agent' && <Sparkles className="text-lozenge-discovery-foreground" aria-hidden />}
+          {shown}
+        </SelectValue>
       </SelectTrigger>
       <SelectContent>
-        <SelectItem value={NOBODY}>Unassigned</SelectItem>
-        {members.map((member) => (
-          <SelectItem key={member.userId} value={member.userId}>
-            {member.name}
-          </SelectItem>
-        ))}
+        <SelectItem value={UNASSIGNED}>Unassigned</SelectItem>
+        <SelectGroup>
+          <SelectLabel>Members</SelectLabel>
+          {members.map((member) => (
+            <SelectItem key={member.userId} value={encodeAssignee({ type: 'member', id: member.userId })}>
+              {member.name}
+            </SelectItem>
+          ))}
+        </SelectGroup>
+        {agents.length > 0 && (
+          <SelectGroup>
+            <SelectLabel>Agents</SelectLabel>
+            {agents.map((agent) => (
+              <SelectItem key={agent.id} value={encodeAssignee({ type: 'agent', id: agent.id })}>
+                <Sparkles className="text-lozenge-discovery-foreground" aria-hidden />
+                {agent.name}
+              </SelectItem>
+            ))}
+          </SelectGroup>
+        )}
       </SelectContent>
     </Select>
   )

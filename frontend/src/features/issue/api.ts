@@ -4,6 +4,7 @@ import {
   commentSchema,
   issueListSchema,
   issueSchema,
+  type AssigneeRef,
   type Comment,
   type Issue,
   type IssueList,
@@ -43,7 +44,7 @@ export function createIssue(workspaceId: string, issue: NewIssue): Promise<Issue
       description: issue.description,
       status: issue.status,
       priority: issue.priority,
-      assignee: issue.assigneeId === null ? undefined : { type: 'member', id: issue.assigneeId },
+      assignee: issue.assignee ?? undefined,
     },
     schema: issueSchema,
   })
@@ -60,11 +61,11 @@ export function updateIssue(workspaceId: string, issueId: string, changes: Issue
   return apiRequest(`${base(workspaceId)}/${issueId}`, { method: 'PATCH', body: changes, schema: issueSchema })
 }
 
-/** A null {@code assigneeId} unassigns. */
-export function assignIssue(workspaceId: string, issueId: string, assigneeId: string | null): Promise<Issue> {
+/** A null {@code assignee} unassigns. */
+export function assignIssue(workspaceId: string, issueId: string, assignee: AssigneeRef | null): Promise<Issue> {
   return apiRequest(`${base(workspaceId)}/${issueId}/assignee`, {
     method: 'PUT',
-    body: { assignee: assigneeId === null ? null : { type: 'member', id: assigneeId } },
+    body: { assignee },
     schema: issueSchema,
   })
 }

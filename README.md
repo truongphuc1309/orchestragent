@@ -4,8 +4,8 @@ People and AI agents working on the same issues. Assign an issue to an agent lik
 teammate: a local daemon picks up the task, runs Claude Code CLI on your machine, streams progress in
 real time, and moves the issue to review for a human to approve.
 
-> Status: step 6 of `PLAN.md` (live updates over SSE) is implemented on top of steps 1 to 5. Steps 2 to 6
-> are awaiting human review. The agent and inbox contexts are still empty.
+> Status: step 7 of `PLAN.md` (agents and runtimes, server side and web app) is implemented on top of steps 1 to 6. Steps 2 to 7
+> are awaiting human review. The inbox context is still empty and there is no daemon yet.
 
 ## Requirements
 
@@ -93,6 +93,29 @@ runs through `@ApplicationModuleListener` (after the commit, on its own thread);
 
 The browser side (`shared/api/eventStream.ts`) reconnects with a growing delay when the browser gives up, treats 60
 seconds without any event or heartbeat as a dead connection, and fetches the whole workspace again after a break.
+
+### Agents and runtimes (step 7)
+
+A **runtime** is one AI tool (provider, for example `claude`) on one computer (daemon) that registered with a
+workspace; it is online while its daemon sends heartbeats, and a job that runs every 30 seconds marks runtimes
+silent for over 90 seconds offline. An **agent** is an AI teammate: a name, markdown instructions, an optional
+model, and the runtime that does its work. Agents are archived, never deleted: an archived agent cannot be given
+work or edited (restore it first), but issues it already has keep its name.
+
+Rules: every member sees agents and runtimes. An agent runs work on the computer of whoever owns its runtime, so
+a person can only point an agent at a runtime of their own; the creator, admins and owners edit, archive and
+restore it (`AgentPolicy`, mirrored by `permissions.ts`). Active agents of a workspace have distinct names
+(ignoring case, also enforced by a partial unique index).
+
+REST under `/api/workspaces/{id}`: `GET /runtimes`, and `GET|POST /agents` (`?includeArchived=true`),
+`GET|PUT /agents/{agentId}`, `POST /agents/{agentId}/archive`, `POST /agents/{agentId}/restore`. Registering,
+heartbeats and deregistering are use cases of `RuntimeService`; the daemon API that calls them (with API tokens)
+arrives in step 8, so for now runtimes can only be created through the service (tests do this).
+
+Issues can be assigned to agents: the issue context asks the agent context through its contract
+(`agent-contract`: `AgentDirectory`), and the assignee picker of the web app lists members and agents (agents with
+the purple spark). The web app has Agents and Runtimes pages; the Runtimes page also explains how to connect a
+computer.
 
 ### Frontend (step 3)
 

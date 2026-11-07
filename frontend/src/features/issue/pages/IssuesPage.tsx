@@ -1,5 +1,6 @@
 import { LayoutGrid, List, Plus } from 'lucide-react'
 import { useState } from 'react'
+import { useAgents } from '@/features/agent/hooks'
 import { useMembers } from '@/features/workspace/hooks'
 import { useWorkspace } from '@/features/workspace/workspaceContext'
 import { Button } from '@/shared/ui/button'
@@ -22,6 +23,7 @@ export function IssuesPage() {
   const setFilters = useIssueViewStore((state) => state.setFilters)
   const issues = useIssues(workspace.id, filters)
   const members = useMembers(workspace.id)
+  const agents = useAgents(workspace.id)
   const [creating, setCreating] = useState<{ status: Status } | null>(null)
 
   return (
@@ -40,6 +42,7 @@ export function IssuesPage() {
           filters={filters}
           onChange={(next) => setFilters(workspace.id, next)}
           members={members.data ?? []}
+          agents={agents.data ?? []}
         />
         <Tabs value={view} onValueChange={(value) => setView(value === 'list' ? 'list' : 'board')}>
           <TabsList variant="line" aria-label="View">

@@ -77,6 +77,7 @@ describe('dropping a card on the board', () => {
       'GET /api/me': () => json(200, ADA),
       'GET /api/workspaces': () => json(200, [ACME]),
       [`GET /api/workspaces/${ACME.id}/members`]: () => json(200, []),
+      [`GET /api/workspaces/${ACME.id}/agents`]: () => json(200, []),
       [LIST]: () => json(200, { items: ISSUES, total: ISSUES.length }),
       ...extra,
     }

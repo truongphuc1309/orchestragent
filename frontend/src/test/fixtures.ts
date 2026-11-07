@@ -1,3 +1,4 @@
+import type { Agent, Runtime } from '@/features/agent/schemas'
 import type { Comment, Issue } from '@/features/issue/schemas'
 import type { Invitation, Member, Workspace } from '@/features/workspace/schemas'
 
@@ -65,6 +66,41 @@ export function comment(overrides: Partial<Comment> & Pick<Comment, 'id' | 'issu
   return {
     author: { type: 'member', id: ADA.id, name: ADA.name },
     createdAt: '2026-01-05T10:00:00Z',
+    ...overrides,
+  }
+}
+
+export function runtimeId(n: number): string {
+  return `0198f1c0-0000-7000-8000-0000000003${String(n).padStart(2, '0')}`
+}
+
+export function agentId(n: number): string {
+  return `0198f1c0-0000-7000-8000-0000000004${String(n).padStart(2, '0')}`
+}
+
+export function runtime(overrides: Partial<Runtime> & Pick<Runtime, 'id'>): Runtime {
+  return {
+    ownerId: ADA.id,
+    ownerName: ADA.name,
+    deviceName: "Ada's laptop",
+    provider: 'claude',
+    providerVersion: '1.0.0',
+    status: 'online',
+    lastHeartbeatAt: new Date().toISOString(),
+    ...overrides,
+  }
+}
+
+export function agent(overrides: Partial<Agent> & Pick<Agent, 'id' | 'name'>): Agent {
+  return {
+    instructions: 'Write clean code.',
+    model: null,
+    runtime: { id: runtimeId(1), deviceName: "Ada's laptop", provider: 'claude', status: 'online' },
+    createdById: ADA.id,
+    createdByName: ADA.name,
+    archived: false,
+    archivedAt: null,
+    createdAt: '2026-01-06T10:00:00Z',
     ...overrides,
   }
 }

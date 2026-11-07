@@ -13,7 +13,7 @@ import {
 } from './api'
 import { applyMove } from './board'
 import type { IssueFilters } from './filters'
-import type { Issue, IssueList, MoveTarget, NewIssue } from './schemas'
+import type { AssigneeRef, Issue, IssueList, MoveTarget, NewIssue } from './schemas'
 
 /** Every key contains the workspace ID, so issues of two workspaces never share cache entries. */
 export const issueKeys = {
@@ -72,8 +72,8 @@ export function useUpdateIssue(workspaceId: string) {
 export function useAssignIssue(workspaceId: string) {
   const sync = useSyncIssue(workspaceId)
   return useMutation({
-    mutationFn: ({ issueId, assigneeId }: { issueId: string; assigneeId: string | null }) =>
-      assignIssue(workspaceId, issueId, assigneeId),
+    mutationFn: ({ issueId, assignee }: { issueId: string; assignee: AssigneeRef | null }) =>
+      assignIssue(workspaceId, issueId, assignee),
     onSuccess: sync,
   })
 }

@@ -1,11 +1,13 @@
 import type { ReactNode } from 'react'
-import { ChevronDown } from 'lucide-react'
+import { ChevronDown, Sparkles } from 'lucide-react'
+import type { Agent } from '@/features/agent/schemas'
 import type { Member } from '@/features/workspace/schemas'
 import { Button } from '@/shared/ui/button'
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/shared/ui/dropdown-menu'
 import { hasFilters, type IssueFilters } from '../filters'
@@ -34,10 +36,11 @@ interface Props {
   filters: IssueFilters
   onChange: (filters: IssueFilters) => void
   members: readonly Member[]
+  agents: readonly Agent[]
 }
 
 /** Status, priority and assignee filters. The choice is kept per workspace by the caller. */
-export function IssueFiltersBar({ filters, onChange, members }: Props) {
+export function IssueFiltersBar({ filters, onChange, members, agents }: Props) {
   return (
     <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Filters">
       <FilterMenu label="Status" count={filters.statuses.length}>
@@ -80,6 +83,18 @@ export function IssueFiltersBar({ filters, onChange, members }: Props) {
             onCheckedChange={() => onChange({ ...filters, assignees: toggle(filters.assignees, member.userId) })}
           >
             {member.name}
+          </DropdownMenuCheckboxItem>
+        ))}
+        {agents.length > 0 && <DropdownMenuSeparator />}
+        {agents.map((agent) => (
+          <DropdownMenuCheckboxItem
+            key={agent.id}
+            checked={filters.assignees.includes(agent.id)}
+            onSelect={(event) => event.preventDefault()}
+            onCheckedChange={() => onChange({ ...filters, assignees: toggle(filters.assignees, agent.id) })}
+          >
+            <Sparkles className="text-lozenge-discovery-foreground" aria-hidden />
+            {agent.name}
           </DropdownMenuCheckboxItem>
         ))}
       </FilterMenu>

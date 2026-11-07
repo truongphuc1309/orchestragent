@@ -1,6 +1,8 @@
 import { Navigate, type RouteObject } from 'react-router'
 import { AuthGuard } from '@/features/auth/components/AuthGuard'
 import { LoginPage } from '@/features/auth/pages/LoginPage'
+import { AgentsPage } from '@/features/agent/pages/AgentsPage'
+import { RuntimesPage } from '@/features/agent/pages/RuntimesPage'
 import { IssueDetailPage } from '@/features/issue/pages/IssueDetailPage'
 import { IssuesPage } from '@/features/issue/pages/IssuesPage'
 import { TokensPage } from '@/features/tokens/pages/TokensPage'
@@ -28,6 +30,8 @@ export const routes: RouteObject[] = [
           { index: true, element: <WorkspaceHomePage /> },
           { path: 'issues', element: <IssuesPage /> },
           { path: 'issues/:number', element: <IssueDetailPage /> },
+          { path: 'agents', element: <AgentsPage /> },
+          { path: 'runtimes', element: <RuntimesPage /> },
           { path: 'settings', element: <Navigate to="members" replace /> },
           { path: 'settings/members', element: <MembersPage /> },
           { path: 'settings/tokens', element: <TokensPage /> },

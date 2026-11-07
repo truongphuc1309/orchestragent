@@ -1,6 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Controller, useForm } from 'react-hook-form'
 import { toast } from 'sonner'
+import { useAgents } from '@/features/agent/hooks'
 import { useMembers } from '@/features/workspace/hooks'
 import type { Workspace } from '@/features/workspace/schemas'
 import { messageOf } from '@/shared/api/errors'
@@ -9,6 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from '@/shared/ui/input'
 import { Label } from '@/shared/ui/label'
 import { Textarea } from '@/shared/ui/textarea'
+import { decodeAssignee, encodeAssignee } from '../assignee'
 import { useCreateIssue } from '../hooks'
 import { issueKey } from '../key'
 import { createIssueFormSchema, type CreateIssueForm, type Status } from '../schemas'
@@ -45,10 +47,11 @@ interface FormProps {
 
 function CreateIssueFormView({ workspace, initialStatus, onClose }: FormProps) {
   const members = useMembers(workspace.id)
+  const agents = useAgents(workspace.id)
   const create = useCreateIssue(workspace.id)
   const form = useForm<CreateIssueForm>({
     resolver: zodResolver(createIssueFormSchema),
-    defaultValues: { title: '', description: '', status: initialStatus, priority: 'none', assigneeId: '' },
+    defaultValues: { title: '', description: '', status: initialStatus, priority: 'none', assignee: '' },
   })
   const titleError = form.formState.errors.title
   const descriptionError = form.formState.errors.description
@@ -60,7 +63,7 @@ function CreateIssueFormView({ workspace, initialStatus, onClose }: FormProps) {
         description: values.description,
         status: values.status,
         priority: values.priority,
-        assigneeId: values.assigneeId === '' ? null : values.assigneeId,
+        assignee: decodeAssignee(values.assignee),
       },
       {
         onSuccess: (issue) => {
@@ -125,15 +128,16 @@ function CreateIssueFormView({ workspace, initialStatus, onClose }: FormProps) {
         />
         <Controller
           control={form.control}
-          name="assigneeId"
+          name="assignee"
           render={({ field }) => (
             <div className="flex flex-col gap-1.5">
               <Label>Assignee</Label>
               <AssigneeSelect
-                value={field.value === '' ? null : field.value}
-                onChange={(id) => field.onChange(id ?? '')}
+                value={decodeAssignee(field.value)}
+                onChange={(ref) => field.onChange(ref === null ? '' : encodeAssignee(ref))}
                 label="Assignee"
                 members={members.data ?? []}
+                agents={agents.data ?? []}
                 className="w-full"
               />
             </div>

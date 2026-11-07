@@ -2,13 +2,17 @@ import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { routes } from '@/app/routes'
-import { ACME, ADA, comment, issue, issueId, MIA, member } from '@/test/fixtures'
+import { ACME, ADA, agent, agentId, comment, issue, issueId, MIA, member } from '@/test/fixtures'
 import { fakeServer, json, noContent, problem, type RecordedRequest } from '@/test/fakeServer'
 import { renderRoutes } from '@/test/render'
-import type { Issue } from '../schemas'
+import type { Actor, Issue } from '../schemas'
 
 const MEMBERS = [member({ userId: ADA.id, name: 'ada', role: 'owner' }), member({ userId: MIA.userId, name: 'Mia' })]
 const BASE = `/api/workspaces/${ACME.id}/issues`
+const AGENTS = `GET /api/workspaces/${ACME.id}/agents`
+const BUILDER = agent({ id: agentId(1), name: 'Builder' })
+/** The active agents of the workspace; tests that need none override the handler. */
+const AGENT_LIST = [BUILDER]
 
 const ISSUE: Issue = issue({
   id: issueId(7),
@@ -39,6 +43,7 @@ function handlers(overrides: Record<string, (request: RecordedRequest) => Respon
     'GET /api/me': () => json(200, ADA),
     'GET /api/workspaces': () => json(200, [workspace]),
     [`GET /api/workspaces/${ACME.id}/members`]: () => json(200, MEMBERS),
+    [AGENTS]: () => json(200, AGENT_LIST),
     [`GET ${BASE}/number/7`]: () => json(200, ISSUE),
     [`GET ${BASE}/${ISSUE.id}/comments`]: () => json(200, COMMENTS),
     ...overrides,
@@ -246,6 +251,53 @@ describe('issue detail page', () => {
       await user.click(await screen.findByRole('option', { name: 'Urgent' }))
 
       await waitFor(() => expect(server.calls(`PATCH ${BASE}/${ISSUE.id}`)[0]?.body).toEqual({ priority: 'urgent' }))
+    })
+
+    it('offers members and agents in separate groups', async () => {
+      fakeServer(handlers())
+      await openIssue()
+      const user = userEvent.setup()
+
+      await user.click(screen.getByRole('combobox', { name: 'Assignee' }))
+
+      const listbox = await screen.findByRole('listbox')
+      expect(within(listbox).getByText('Members')).toBeInTheDocument()
+      expect(within(listbox).getByText('Agents')).toBeInTheDocument()
+      expect(within(listbox).getAllByRole('option').map((option) => option.textContent)).toEqual([
+        'Unassigned',
+        'ada',
+        'Mia',
+        'Builder',
+      ])
+    })
+
+    it('assigns the issue to an agent', async () => {
+      const server = fakeServer(
+        handlers({
+          [`PUT ${BASE}/${ISSUE.id}/assignee`]: () =>
+            json(200, { ...ISSUE, assignee: { type: 'agent', id: BUILDER.id, name: 'Builder' } }),
+        }),
+      )
+      await openIssue()
+      const user = userEvent.setup()
+
+      await user.click(screen.getByRole('combobox', { name: 'Assignee' }))
+      await user.click(await screen.findByRole('option', { name: 'Builder' }))
+
+      await waitFor(() => expect(server.calls(`PUT ${BASE}/${ISSUE.id}/assignee`)).toHaveLength(1))
+      expect(server.calls(`PUT ${BASE}/${ISSUE.id}/assignee`)[0]?.body).toEqual({
+        assignee: { type: 'agent', id: BUILDER.id },
+      })
+      await waitFor(() => expect(screen.getByRole('combobox', { name: 'Assignee' })).toHaveTextContent('Builder'))
+    })
+
+    it('shows an agent that is already assigned, even one that has since been archived', async () => {
+      const archivedBot: Actor = { type: 'agent', id: agentId(7), name: 'Old bot' }
+      fakeServer(handlers({ [`GET ${BASE}/number/7`]: () => json(200, { ...ISSUE, assignee: archivedBot }) }))
+      await openIssue()
+
+      // The archived agent is not among the active agents the picker offers, but its name is still shown.
+      expect(screen.getByRole('combobox', { name: 'Assignee' })).toHaveTextContent('Old bot')
     })
 
     it('assigns to another member and unassigns', async () => {

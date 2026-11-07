@@ -4,12 +4,14 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router'
 import { toast } from 'sonner'
 import { useMe } from '@/features/auth/hooks'
+import { useAgents } from '@/features/agent/hooks'
 import { useMembers } from '@/features/workspace/hooks'
 import type { Workspace } from '@/features/workspace/schemas'
 import { messageOf } from '@/shared/api/errors'
 import { ConfirmDialog } from '@/shared/layout/ConfirmDialog'
 import { formatDateTime } from '@/shared/lib/format'
 import { Button } from '@/shared/ui/button'
+import { assigneeRef } from '../assignee'
 import { useAssignIssue, useDeleteIssue, useUpdateIssue } from '../hooks'
 import { issueKey } from '../key'
 import { canDeleteIssue } from '../permissions'
@@ -30,6 +32,7 @@ function Property({ label, children }: { label: string; children: ReactNode }) {
 export function IssueProperties({ workspace, issue }: { workspace: Workspace; issue: Issue }) {
   const me = useMe()
   const members = useMembers(workspace.id)
+  const agents = useAgents(workspace.id)
   const navigate = useNavigate()
   const update = useUpdateIssue(workspace.id)
   const assign = useAssignIssue(workspace.id)
@@ -63,11 +66,12 @@ export function IssueProperties({ workspace, issue }: { workspace: Workspace; is
         <Property label="Assignee">
           <AssigneeSelect
             label="Assignee"
-            value={issue.assignee?.id ?? null}
+            value={assigneeRef(issue.assignee)}
             members={members.data ?? []}
+            agents={agents.data ?? []}
             currentName={issue.assignee?.name}
-            onChange={(assigneeId) =>
-              assign.mutate({ issueId: issue.id, assigneeId }, onError('Could not change the assignee.'))
+            onChange={(assignee) =>
+              assign.mutate({ issueId: issue.id, assignee }, onError('Could not change the assignee.'))
             }
           />
         </Property>

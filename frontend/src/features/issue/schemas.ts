@@ -86,8 +86,8 @@ export const createIssueFormSchema = z.object({
   description: z.string().max(MAX_DESCRIPTION, `Use at most ${MAX_DESCRIPTION} characters`),
   status: statusSchema,
   priority: prioritySchema,
-  /** A member's user ID, or the empty string for nobody. */
-  assigneeId: z.string(),
+  /** The assignee as encoded by assignee.ts (member:<id>, agent:<id>), or the empty string for nobody. */
+  assignee: z.string(),
 })
 export type CreateIssueForm = z.infer<typeof createIssueFormSchema>
 
@@ -96,13 +96,19 @@ export const commentFormSchema = z.object({
 })
 export type CommentForm = z.infer<typeof commentFormSchema>
 
+/** A member (user ID) or an agent (agent ID) an issue is assigned to. */
+export interface AssigneeRef {
+  type: 'member' | 'agent'
+  id: string
+}
+
 /** What the create dialog sends; it mirrors the server's request. */
 export interface NewIssue {
   title: string
   description: string
   status: Status
   priority: Priority
-  assigneeId: string | null
+  assignee: AssigneeRef | null
 }
 
 /** Where a dragged issue lands: a column and the issues directly above and below the drop spot. */
