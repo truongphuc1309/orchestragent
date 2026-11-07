@@ -19,8 +19,10 @@ progress back in real time, and moves the issue to review.
 1. All code, comments, identifiers, logs, and error messages are in **English**.
 2. Never commit secrets. Configuration comes from environment variables (`.env`, gitignored); document
    every new variable in `.env.example` with an empty or placeholder value.
-3. Each step ends with: build passes, the step's tests pass, a commit using Conventional Commits
-   (for example `feat(issue): add board drag and drop`).
+3. Each step ends with: build passes and the step's tests pass. **AI agents never run `git commit`,
+   `git push`, or any other command that records history** (no amending, no tagging). The human reviews
+   the working tree and commits. When a step is done, the agent leaves the changes uncommitted and may
+   suggest a Conventional Commits message (for example `feat(issue): add board drag and drop`).
 4. Changes to authentication, API tokens, or the daemon API need human review before merge.
 5. Tests **never** call the real `claude` binary. Use the mock provider or a fake script. Tests with the
    real Claude CLI run only when `ORCHESTRAGENT_RUN_REAL_CLAUDE=1`.

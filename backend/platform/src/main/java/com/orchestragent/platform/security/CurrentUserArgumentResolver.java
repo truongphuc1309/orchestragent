@@ -11,7 +11,10 @@ import org.springframework.web.context.request.NativeWebRequest;
 import org.springframework.web.method.support.HandlerMethodArgumentResolver;
 import org.springframework.web.method.support.ModelAndViewContainer;
 
-/** Injects {@link CurrentUser} into controller methods from the JWT ({@code sub} = user ID). */
+/**
+ * Injects {@link CurrentUser} into controller methods. Browser requests carry a JWT ({@code sub} = user ID);
+ * daemon requests are authenticated by an API token filter that stores a {@link CurrentUser} as principal.
+ */
 public class CurrentUserArgumentResolver implements HandlerMethodArgumentResolver {
 
     @Override
@@ -26,9 +29,19 @@ public class CurrentUserArgumentResolver implements HandlerMethodArgumentResolve
             NativeWebRequest webRequest,
             WebDataBinderFactory binderFactory) {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (!(authentication instanceof JwtAuthenticationToken token)) {
+        if (authentication == null || !authentication.isAuthenticated()) {
             throw new AuthenticationCredentialsNotFoundException("No authenticated user");
         }
+        if (authentication.getPrincipal() instanceof CurrentUser currentUser) {
+            return currentUser;
+        }
+        if (authentication instanceof JwtAuthenticationToken token) {
+            return fromJwt(token);
+        }
+        throw new AuthenticationCredentialsNotFoundException("No authenticated user");
+    }
+
+    private static CurrentUser fromJwt(JwtAuthenticationToken token) {
         String subject = token.getToken().getSubject();
         try {
             return new CurrentUser(UUID.fromString(subject), token.getToken().getClaimAsString("email"));

@@ -4,8 +4,8 @@ People and AI agents working on the same issues. Assign an issue to an agent lik
 teammate: a local daemon picks up the task, runs Claude Code CLI on your machine, streams progress in
 real time, and moves the issue to review for a human to approve.
 
-> Status: step 1 of `PLAN.md` (shared kernel and platform) is done. The app starts and serves
-> `GET /api/health`; the bounded contexts are still empty.
+> Status: step 2 of `PLAN.md` (identity: login by emailed code, API tokens) is implemented and awaiting
+> human review, as required for authentication changes. The other contexts are still empty.
 
 ## Requirements
 
@@ -33,6 +33,20 @@ curl http://localhost:8080/api/health
 ```
 
 The integration tests start their own Postgres with Testcontainers, so Docker must be running.
+
+### Logging in (step 2)
+
+Login is passwordless: `POST /api/auth/code {email}` emails a 6-digit code (open Mailpit at
+http://localhost:8025 in development), `POST /api/auth/verify {email, code}` checks it and sets the
+HttpOnly `oa_session` cookie. Codes expire after 10 minutes, allow 5 wrong guesses, can be requested once
+per minute per address, and are stored only as a keyed hash.
+
+Browser requests are protected by CSRF tokens: read the `XSRF-TOKEN` cookie and send its value in the
+`X-XSRF-TOKEN` header on every write. Requests that use an `Authorization: Bearer` header do not need it.
+The daemon API (`/api/daemon/**`) accepts only API tokens (`oat_...`) created via `POST /api/me/tokens`.
+
+With the `dev` profile and `DEV_LOGIN_CODE` set, that fixed code logs in any email address. Other profiles
+ignore `DEV_LOGIN_CODE` completely.
 
 ## Environment variables
 

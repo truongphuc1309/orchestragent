@@ -1,3 +1,8 @@
+orchestragent:
+  security:
+    # Local development runs over plain http.
+    cookie-secure: false
+
 logging:
   level:
     com.orchestragent: DEBUG

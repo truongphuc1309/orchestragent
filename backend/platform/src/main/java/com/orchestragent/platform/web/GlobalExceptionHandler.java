@@ -4,10 +4,13 @@ import com.orchestragent.shared.error.ConflictException;
 import com.orchestragent.shared.error.DomainException;
 import com.orchestragent.shared.error.ForbiddenException;
 import com.orchestragent.shared.error.NotFoundException;
+import com.orchestragent.shared.error.RateLimitedException;
+import com.orchestragent.shared.error.UnauthorizedException;
 import com.orchestragent.shared.error.ValidationException;
 import jakarta.validation.ConstraintViolationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
@@ -29,6 +32,15 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(DomainException.class)
     ResponseEntity<ProblemDetail> handleDomain(DomainException e) {
         return problem(statusOf(e), e.getMessage(), e.code());
+    }
+
+    @ExceptionHandler(RateLimitedException.class)
+    ResponseEntity<ProblemDetail> handleRateLimited(RateLimitedException e) {
+        ProblemDetail problem = problemDetail(HttpStatus.TOO_MANY_REQUESTS, e.getMessage(), e.code());
+        problem.setProperty("retryAfterSeconds", e.retryAfterSeconds());
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .header(HttpHeaders.RETRY_AFTER, String.valueOf(e.retryAfterSeconds()))
+                .body(problem);
     }
 
     @ExceptionHandler(ConstraintViolationException.class)
@@ -54,10 +66,14 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     }
 
     private static ResponseEntity<ProblemDetail> problem(HttpStatus status, String detail, String code) {
+        return ResponseEntity.status(status).body(problemDetail(status, detail, code));
+    }
+
+    private static ProblemDetail problemDetail(HttpStatus status, String detail, String code) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(status, detail);
         problem.setTitle(status.getReasonPhrase());
         problem.setProperty("code", code);
-        return ResponseEntity.status(status).body(problem);
+        return problem;
     }
 
     private static HttpStatus statusOf(DomainException e) {
@@ -66,7 +82,8 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
             case ForbiddenException ignored -> HttpStatus.FORBIDDEN;
             case ConflictException ignored -> HttpStatus.CONFLICT;
             case ValidationException ignored -> HttpStatus.BAD_REQUEST;
-            default -> HttpStatus.UNPROCESSABLE_ENTITY;
+            case UnauthorizedException ignored -> HttpStatus.UNAUTHORIZED;
+            default -> HttpStatus.UNPROCESSABLE_CONTENT;
         };
     }
 }

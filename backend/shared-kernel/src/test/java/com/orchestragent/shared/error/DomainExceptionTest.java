@@ -12,6 +12,13 @@ class DomainExceptionTest {
         assertThat(new ForbiddenException("x").code()).isEqualTo("forbidden");
         assertThat(new ConflictException("x").code()).isEqualTo("conflict");
         assertThat(new ValidationException("x").code()).isEqualTo("validation");
+        assertThat(new UnauthorizedException("x").code()).isEqualTo("unauthorized");
+        assertThat(new RateLimitedException("x", 30).code()).isEqualTo("rate_limited");
+    }
+
+    @Test
+    void rateLimitedExposesRetryAfter() {
+        assertThat(new RateLimitedException("slow down", 42).retryAfterSeconds()).isEqualTo(42);
     }
 
     @Test

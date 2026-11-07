@@ -11,6 +11,9 @@ spring:
     url: ${DB_URL:}
     username: ${DB_USER:}
     password: ${DB_PASSWORD:}
+  mail:
+    host: ${MAIL_HOST:localhost}
+    port: ${MAIL_PORT:1025}
   flyway:
     # Migrations are run per module by ModuleFlywayRunner in the platform module.
     enabled: false
@@ -31,3 +34,9 @@ server:
 orchestragent:
   security:
     jwt-secret: ${JWT_SECRET:}
+    # Session and CSRF cookies are Secure unless a profile turns this off (dev and test only).
+    cookie-secure: true
+  mail:
+    from: noreply@orchestragent.local
+  # Fixed login code. Only the "dev" profile reads it; every other profile ignores it.
+  dev-login-code: ${DEV_LOGIN_CODE:}

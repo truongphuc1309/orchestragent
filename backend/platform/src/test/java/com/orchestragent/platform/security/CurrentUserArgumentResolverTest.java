@@ -11,6 +11,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;
 import org.springframework.security.authentication.TestingAuthenticationToken;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
@@ -40,6 +41,15 @@ class CurrentUserArgumentResolverTest {
 
         assertThatThrownBy(() -> resolver.resolveArgument(null, null, null, null))
                 .isInstanceOf(AuthenticationCredentialsNotFoundException.class);
+    }
+
+    @Test
+    void resolvesPrincipalSetByApiTokenFilter() {
+        CurrentUser principal = new CurrentUser(UUID.randomUUID(), null);
+        SecurityContextHolder.getContext()
+                .setAuthentication(new UsernamePasswordAuthenticationToken(principal, null, List.of()));
+
+        assertThat(resolver.resolveArgument(null, null, null, null)).isEqualTo(principal);
     }
 
     @Test

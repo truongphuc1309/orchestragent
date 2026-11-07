@@ -1,12 +1,15 @@
 package com.orchestragent.platform.web;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.orchestragent.shared.error.ConflictException;
 import com.orchestragent.shared.error.ForbiddenException;
 import com.orchestragent.shared.error.NotFoundException;
+import com.orchestragent.shared.error.RateLimitedException;
+import com.orchestragent.shared.error.UnauthorizedException;
 import com.orchestragent.shared.error.ValidationException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -51,6 +54,22 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
+    void unauthorizedMapsTo401() throws Exception {
+        mvc.perform(get("/unauthorized"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("unauthorized"));
+    }
+
+    @Test
+    void rateLimitedMapsTo429WithRetryAfter() throws Exception {
+        mvc.perform(get("/rate-limited"))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(header().string("Retry-After", "30"))
+                .andExpect(jsonPath("$.code").value("rate_limited"))
+                .andExpect(jsonPath("$.retryAfterSeconds").value(30));
+    }
+
+    @Test
     void unexpectedErrorsDoNotLeakDetails() throws Exception {
         mvc.perform(get("/boom"))
                 .andExpect(status().isInternalServerError())
@@ -79,6 +98,16 @@ class GlobalExceptionHandlerTest {
         @GetMapping("/validation")
         void validation() {
             throw new ValidationException("Bad input");
+        }
+
+        @GetMapping("/unauthorized")
+        void unauthorized() {
+            throw new UnauthorizedException("Invalid code");
+        }
+
+        @GetMapping("/rate-limited")
+        void rateLimited() {
+            throw new RateLimitedException("Too often", 30);
         }
 
         @GetMapping("/boom")
