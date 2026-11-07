@@ -28,7 +28,7 @@ class SchemaIsolationTest extends IntegrationTest {
 
     @Test
     void everyContextHasItsOwnSchemaWithItsOwnFlywayHistory() {
-        for (String schema : List.of("identity", "workspace")) {
+        for (String schema : List.of("identity", "workspace", "issue", "agent", "inbox")) {
             Integer history = jdbc.sql("SELECT count(*) FROM information_schema.tables "
                             + "WHERE table_schema = :schema AND table_name = 'flyway_schema_history'")
                     .param("schema", schema)

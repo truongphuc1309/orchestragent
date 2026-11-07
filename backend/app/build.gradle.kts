@@ -15,6 +15,7 @@ dependencies {
     testImplementation(project(":backend:workspace:workspace-application"))
     testImplementation(project(":backend:issue:issue-contract"))
     testImplementation(project(":backend:agent:agent-application"))
+    testImplementation(project(":backend:inbox:inbox-application"))
     testImplementation(libs.spring.boot.starter.webmvc.test)
     testImplementation(libs.spring.boot.starter.security.test)
     testImplementation(libs.spring.boot.testcontainers)

@@ -21,7 +21,7 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
  * the daemon with plain HTTP calls. Events between contexts are handled on their own threads after the commit,
  * so what they cause is awaited, never expected at once.
  */
-abstract class TaskWorkflowTestBase extends IntegrationTest {
+public abstract class TaskWorkflowTestBase extends IntegrationTest {
 
     protected static final Duration PATIENCE = Duration.ofSeconds(10);
 

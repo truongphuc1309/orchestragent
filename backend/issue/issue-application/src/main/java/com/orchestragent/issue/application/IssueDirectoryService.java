@@ -72,7 +72,9 @@ class IssueDirectoryService implements IssueDirectory {
                 issue.description(),
                 issue.status().code(),
                 assignee == null ? null : contract(assignee.type()),
-                assignee == null ? null : assignee.id());
+                assignee == null ? null : assignee.id(),
+                contract(issue.creator().type()),
+                issue.creator().id());
     }
 
     private static ActorType contract(com.orchestragent.issue.domain.ActorType type) {

@@ -31,7 +31,7 @@ class EventStreamController {
     @GetMapping
     SseEmitter stream(CurrentUser user, @PathVariable UUID workspaceId) {
         access.requireMember(workspaceId, user.id());
-        SseEmitter emitter = hub.register(workspaceId);
+        SseEmitter emitter = hub.register(workspaceId, user.id());
         try {
             // Without a first write the browser does not see the response headers until the first heartbeat,
             // so it would not know it is connected.

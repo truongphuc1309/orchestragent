@@ -40,6 +40,30 @@ class SseHubTest {
     }
 
     @Test
+    void publishToUserReachesOnlyThatUsersConnectionsInThatWorkspace() {
+        UUID mia = UUID.randomUUID();
+        UUID max = UUID.randomUUID();
+        hub.register(workspace, mia);
+        hub.register(workspace, mia);
+        hub.register(workspace, max);
+        hub.register(workspace);
+        hub.register(UUID.randomUUID(), mia);
+
+        hub.publishToUser(workspace, mia, "inbox.updated", "{}");
+
+        assertThat(created).extracting(emitter -> emitter.sent).containsExactly(1, 1, 0, 0, 0);
+    }
+
+    @Test
+    void aWorkspaceEventStillReachesConnectionsOfUsers() {
+        hub.register(workspace, UUID.randomUUID());
+
+        hub.publish(workspace, "issue.created", "payload");
+
+        assertThat(created.getFirst().sent).isEqualTo(1);
+    }
+
+    @Test
     void publishToWorkspaceWithoutSubscribersDoesNothing() {
         hub.publish(workspace, "issue.created", "payload");
 

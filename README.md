@@ -4,9 +4,8 @@ People and AI agents working on the same issues. Assign an issue to an agent lik
 teammate: a local daemon picks up the task, runs Claude Code CLI on your machine, streams progress in
 real time, and moves the issue to review for a human to approve.
 
-> Status: step 10 of `PLAN.md` (the Claude Code provider) is implemented on top of steps 1 to 9: the daemon runs agents
-> with Claude Code or with the mock provider. Usage and inbox (step 11) and the end-to-end tests (step 12) are still to
-> come.
+> Status: step 11 of `PLAN.md` (usage and inbox) is implemented on top of steps 1 to 10. The end-to-end tests and the
+> final polish (step 12) are still to come.
 
 ## Requirements
 
@@ -238,6 +237,33 @@ because nobody can answer a question during a run.
 Tests never run the real CLI: the parser reads JSONL fixtures (one of them recorded from Claude Code 2.1.311) and the
 process handling runs a fake CLI (a small Java program). One smoke test runs the real one and costs money:
 `ORCHESTRAGENT_RUN_REAL_CLAUDE=1 ./gradlew :daemon:daemon-provider-claude:test --tests '*RealClaudeSmokeTest'`.
+
+### Usage and inbox (step 11)
+
+**Usage** (`GET /api/workspaces/{id}/usage?days=30`, 1 to 365 days, any member; the **Usage** page offers 7, 30 and
+90): the runs of agents that ended in the period (today and the days before it, in UTC), with how many completed and
+failed, input and output tokens, and cost, in total, per agent, per day (every day of the period, zeros on quiet days)
+and for the 20 most expensive issues. Postgres sums them over `agent.agent_tasks`; a run that reported no tokens or
+cost counts as zero, and input tokens include prompt-cache reads and writes, as the daemon reports them. The page draws
+one measure per day at a time (cost, runs or tokens; never two scales on one chart) and has the same numbers as a table.
+It refreshes when a run changes.
+
+**Inbox** (a new context, schema `inbox`): a notification tells one person something about an issue.
+
+| What happened | Who is told |
+| --- | --- |
+| Someone assigned an issue to a person | that person, unless they assigned themselves |
+| An agent finished an issue (it waits for review) | the person who created the issue |
+| An agent failed on an issue | the person who created the issue, with the reason |
+| The issue was deleted | its notifications go away |
+
+People who are no longer members are not told. A notification keeps a copy of the issue number and title and of who
+did it. Events are delivered at least once, so a notification remembers its event: one event makes at most one
+notification per person (a unique key in the database). `GET /api/workspaces/{id}/inbox` returns the newest 100 and the
+unread count, `GET .../inbox/unread-count` only the count (the badge next to **Inbox** in the navigation),
+`POST .../inbox/{id}/read` and `POST .../inbox/read-all` mark them read. Nobody sees or reads another person's
+notifications (404). The live update `inbox.updated` goes only to the browsers of the person whose inbox changed: the
+event stream now knows who opened each connection.
 
 ### Frontend (step 3)
 

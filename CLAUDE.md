@@ -8,9 +8,9 @@ that the code alone does not explain.
 
 ## Status
 
-Steps 0 to 9 of `PLAN.md` are implemented and **committed by the human**. **Step 10 (the Claude Code provider) is
-implemented and not committed yet** (waiting for the human's review). Next is step 11 (usage and inbox), then 12 (E2E
-and docs).
+Steps 0 to 10 of `PLAN.md` are implemented and **committed by the human**. **Step 11 (usage and inbox) is implemented
+and not committed yet** (waiting for the human's review). Next is step 12 (E2E with Playwright, rate limit, seed data,
+docs).
 
 | Step | What | Commit |
 | ---- | ---- | ------ |
@@ -23,9 +23,17 @@ and docs).
 | 7 | Agents, runtimes, assigning issues to agents | `ffe60a4` |
 | 8 | Task queue, daemon API, review gate (needs human review) | `e3f06fa` |
 | 9 | Daemon CLI, provider SPI, mock provider | `5a59664` |
-| 10 | Claude Code provider | not committed |
+| 10 | Claude Code provider | `30e90bc` |
+| 11 | Usage page, inbox context and page | not committed |
 
-Last full run (step 10): `./gradlew build` 813 tests (696 backend, 117 daemon; the real-Claude smoke test skipped),
+Last full run (step 11): `./gradlew build` 851 tests (731 backend, 120 daemon; the real-Claude smoke test skipped),
+frontend 371 tests (29 files); `typecheck`, `lint`, `build` clean. 12 break-the-rule checks each failed the right test.
+By hand (mock daemon, dev backend): the inbox page updated live (no reload) when the mock agent finished an issue and
+when a second user (logged in with the dev code from a script) assigned an issue; the badge counted 1, 2, then 1 after
+opening a notification (which went to the issue) and 0 after "Mark all as read"; the second user's inbox stayed empty.
+The usage page showed the dev data (9 runs, 2 agents, 5 issues) for 30 and 7 days, cost and runs per day, tooltips.
+
+Step 10 run: `./gradlew build` 813 tests (696 backend, 117 daemon; the real-Claude smoke test skipped),
 0 failures. Frontend unchanged since step 9 (357 tests). By hand: `doctor` and `start` found the real Claude Code
 2.1.311 (from inside a Claude Code shell, `CLAUDECODE=1`), registered a `claude` runtime, and reported a wrong
 `claude.permissionMode` and the `bypassPermissions` warning. With the user's permission (it costs money) the real
@@ -72,6 +80,18 @@ processes in this harness can only be killed hard; `DaemonTest` covers it.
   tests use only the mock and never run a real `claude` found on the machine.
 - Processes started in the background by this harness (`bootRun`, the daemon) survive `TaskStop`, and killing them by
   PID is not permitted here: ask the user to run `taskkill /PID ... /T /F`.
+
+## Usage and inbox (step 11)
+
+- Usage is a read model in the agent context (`UsageService`, `UsageReader` port, SQL in `UsageReaderAdapter`), not a
+  context of its own. Inbox is the fifth context (`backend/inbox`, schema `inbox`, migration order 50).
+- `IssueDetails` (issue-contract) gained `creatorType` and `creatorId`; test fakes that build it pass them too.
+- `SseHub` knows the user of each connection (`register(workspaceId, userId)`, `publishToUser`); workspace events still
+  reach everyone. `EventStreamController` registers with the user.
+- `TaskWorkflowTestBase` is public so tests of other packages (`com.orchestragent.inbox`) can use the world it sets up.
+- Frontend `fakeServer` answers `GET /api/workspaces/{id}/inbox/unread-count` with 0 when a test does not handle it
+  (every workspace page asks for it, for the sidebar badge). That is the only default; tests of the badge handle it.
+- The daily usage chart is plain HTML/CSS (no chart library), one measure at a time, with a table view.
 
 ## Working agreements with this user
 

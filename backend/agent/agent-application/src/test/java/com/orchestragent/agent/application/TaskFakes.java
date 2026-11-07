@@ -222,14 +222,16 @@ final class TaskFakes {
 
         IssueDetails add(UUID workspaceId, int number, ActorType assigneeType, UUID assigneeId, String status) {
             IssueDetails issue = new IssueDetails(
-                    UUID.randomUUID(), workspaceId, number, "Issue " + number, "Description " + number, status, assigneeType, assigneeId);
+                    UUID.randomUUID(), workspaceId, number, "Issue " + number, "Description " + number, status, assigneeType, assigneeId,
+                    ActorType.MEMBER, UUID.randomUUID());
             byId.put(issue.id(), issue);
             return issue;
         }
 
         IssueDetails assign(IssueDetails issue, ActorType type, UUID assigneeId) {
             IssueDetails changed = new IssueDetails(
-                    issue.id(), issue.workspaceId(), issue.number(), issue.title(), issue.description(), issue.status(), type, assigneeId);
+                    issue.id(), issue.workspaceId(), issue.number(), issue.title(), issue.description(), issue.status(), type, assigneeId,
+                    issue.creatorType(), issue.creatorId());
             byId.put(issue.id(), changed);
             return changed;
         }
@@ -237,7 +239,7 @@ final class TaskFakes {
         IssueDetails withStatus(IssueDetails issue, String status) {
             IssueDetails changed = new IssueDetails(
                     issue.id(), issue.workspaceId(), issue.number(), issue.title(), issue.description(), status,
-                    issue.assigneeType(), issue.assigneeId());
+                    issue.assigneeType(), issue.assigneeId(), issue.creatorType(), issue.creatorId());
             byId.put(issue.id(), changed);
             return changed;
         }

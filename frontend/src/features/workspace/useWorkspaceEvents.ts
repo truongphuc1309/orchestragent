@@ -2,13 +2,16 @@ import { useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { useEffect } from 'react'
 import { z } from 'zod'
 import { connectEventStream } from '@/shared/api/eventStream'
+import { inboxKeys } from '@/features/inbox/hooks'
 import { issueKeys } from '@/features/issue/hooks'
 import { taskKeys } from '@/features/task/hooks'
+import { usageKeys } from '@/features/usage/hooks'
 import { queryKeys } from './hooks'
 
 /**
  * The server events of a workspace and what they carry. Issue events come from the issue context's SSE
- * listener, task events from the agent context's. All of them only say what changed.
+ * listener, task events from the agent context's, inbox events (sent only to the person whose inbox changed) from
+ * the inbox context's. All of them only say what changed.
  */
 const issueEvent = z.object({ issueId: z.uuid() })
 const taskEvent = z.object({ issueId: z.uuid(), taskId: z.uuid() })
@@ -19,6 +22,7 @@ const EVENT_NAMES = [
   'comment.created',
   'task.updated',
   'task.message',
+  'inbox.updated',
 ] as const
 
 /**
@@ -48,6 +52,8 @@ export function applyWorkspaceEvent(queryClient: QueryClient, workspaceId: strin
       const parsed = taskEvent.safeParse(data)
       if (parsed.success) {
         void queryClient.invalidateQueries({ queryKey: taskKeys.list(workspaceId, parsed.data.issueId) })
+        // A run that ended changes what the agents cost.
+        void queryClient.invalidateQueries({ queryKey: usageKeys.all(workspaceId) })
       }
       break
     }
@@ -59,6 +65,10 @@ export function applyWorkspaceEvent(queryClient: QueryClient, workspaceId: strin
       }
       break
     }
+    case 'inbox.updated':
+      // My inbox changed: the list and the badge.
+      void queryClient.invalidateQueries({ queryKey: inboxKeys.all(workspaceId) })
+      break
   }
 }
 

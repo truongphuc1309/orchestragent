@@ -23,8 +23,20 @@ export function noContent(): Response {
 }
 
 /**
+ * The one request every workspace page makes in the background: the unread count of the inbox badge in the
+ * navigation. Unless a test handles it itself, it is answered with zero, so page tests do not all have to list it.
+ * Nothing else has a default.
+ */
+const UNREAD_COUNT = /^\/api\/workspaces\/[^/]+\/inbox\/unread-count$/
+
+function ambientHandler(method: string, path: string): Handler | undefined {
+  return method === 'GET' && UNREAD_COUNT.test(path) ? () => json(200, { unreadCount: 0 }) : undefined
+}
+
+/**
  * Replaces `fetch` with a table of handlers keyed by "METHOD /path". A request nobody handles fails the
- * test loudly, so tests can never silently talk to a real server.
+ * test loudly, so tests can never silently talk to a real server (the inbox badge's unread count is the only
+ * exception, see {@link ambientHandler}).
  */
 export function fakeServer(handlers: Record<string, Handler>) {
   const requests: RecordedRequest[] = []
@@ -40,7 +52,7 @@ export function fakeServer(handlers: Record<string, Handler>) {
       credentials: init?.credentials,
     }
     requests.push(request)
-    const handler = handlers[`${method} ${path}`]
+    const handler = handlers[`${method} ${path}`] ?? ambientHandler(method, path)
     if (handler === undefined) {
       throw new Error(`Unhandled request in test: ${method} ${path}`)
     }
