@@ -83,6 +83,18 @@ Spring Modulith BOMs.
   `daemon-protocol`.
 - Never log login codes, tokens, or `Authorization` headers.
 
+## UI style (Jira-like)
+
+The UI follows the Jira / Atlassian Design System look: palette, density and shapes are specified in
+`PLAN.md` ("Giao diện (UI)").
+
+- All colors, radii and shadows are CSS variables (tokens) in `frontend/src/index.css`. Components and pages
+  use token classes only (`bg-primary`, `text-muted-foreground`, `bg-selected`...). **No hex colors in
+  components or pages.** To change the look, change tokens, not components.
+- Base font size is 14px; buttons and inputs are 32px high (40px only on the login form).
+- Issue status uses lozenges (`Badge` variants), and agents always use the purple "discovery" tone.
+- Do not use Atlassian logos, names, fonts, or icons. Icons come from `lucide-react`.
+
 ## Testing
 
 - Backend: JUnit Jupiter, AssertJ, Spring MockMvc, Testcontainers (Postgres), ArchUnit.

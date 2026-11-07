@@ -4,15 +4,16 @@ People and AI agents working on the same issues. Assign an issue to an agent lik
 teammate: a local daemon picks up the task, runs Claude Code CLI on your machine, streams progress in
 real time, and moves the issue to review for a human to approve.
 
-> Status: step 2 of `PLAN.md` (identity: login by emailed code, API tokens) is implemented and awaiting
-> human review, as required for authentication changes. The other contexts are still empty.
+> Status: step 3 of `PLAN.md` (frontend skeleton and login page) is implemented on top of step 2
+> (identity). Both are awaiting human review. The other contexts are still empty.
 
 ## Requirements
 
 - JDK 21 (Gradle can also download one automatically through the foojay toolchain resolver, but a JVM
   17+ is still needed to start Gradle itself)
 - Docker (Docker Desktop on Windows/macOS)
-- Node.js + pnpm (from step 3, for `frontend/`)
+- Node.js 22+ and pnpm 10 (for `frontend/`). If `pnpm` is not installed, Corepack (bundled with Node) can
+  run the pinned version without a global install: `corepack pnpm@10.18.0 -C frontend dev`.
 
 ## Getting started
 
@@ -48,6 +49,26 @@ The daemon API (`/api/daemon/**`) accepts only API tokens (`oat_...`) created vi
 With the `dev` profile and `DEV_LOGIN_CODE` set, that fixed code logs in any email address. Other profiles
 ignore `DEV_LOGIN_CODE` completely.
 
+### Frontend (step 3)
+
+```bash
+pnpm -C frontend install
+pnpm -C frontend dev        # http://localhost:5173, proxies /api to the backend on :8080
+pnpm -C frontend typecheck && pnpm -C frontend lint && pnpm -C frontend test && pnpm -C frontend build
+```
+
+Start the backend and `docker compose up -d` first. Open http://localhost:5173, enter an email, read the
+code in Mailpit (http://localhost:8025) and type it in.
+
+The look follows Jira (Atlassian Design System): the palette, typography and shapes are defined once as CSS
+variables ("tokens") in `frontend/src/index.css` and described in `PLAN.md` ("Giao diện (UI)"). Components use
+token classes only; a test fails if a component contains a raw colour or a default Tailwind palette class.
+
+Layout of `frontend/src`: `app/` (router, providers), `features/<feature>/` (`api.ts`, `schemas.ts`,
+`components/`, `pages/`), `shared/api/` (fetch client with CSRF header and zod parsing), `shared/ui/`
+(shadcn/ui components). Every API response is parsed with a zod schema; type assertions (`as T`) and `any`
+are lint errors outside the generated `shared/ui` files.
+
 ## Environment variables
 
 | Variable         | Purpose                                                             |
@@ -67,7 +88,7 @@ ignore `DEV_LOGIN_CODE` completely.
 build-logic/   Gradle convention plugins (oa.java-library, oa.spring-library, oa.spring-app, oa.java-app)
 backend/       Spring Boot modular monolith: shared-kernel, platform, identity, workspace, issue, agent, inbox, app
 daemon/        Java daemon that runs agents locally (protocol, provider SPI, mock and Claude providers, CLI)
-frontend/      React + Vite + TypeScript + shadcn/ui (step 3)
+frontend/      React + Vite + TypeScript + shadcn/ui
 e2e/           Playwright tests (step 12)
 ```
 

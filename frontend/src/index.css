@@ -1,0 +1,206 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * Design tokens: the single source of truth for the Jira-like look (see PLAN.md, "Giao diện (UI)").
+ * Components use token classes (bg-primary, text-muted-foreground, bg-selected...) and never raw colors.
+ * Values approximate the Atlassian Design System tokens of the #0C66E4 blue palette.
+ */
+
+@theme inline {
+    --font-heading: var(--font-sans);
+    --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
+
+    --color-background: var(--background);
+    --color-foreground: var(--foreground);
+    --color-card: var(--card);
+    --color-card-foreground: var(--card-foreground);
+    --color-popover: var(--popover);
+    --color-popover-foreground: var(--popover-foreground);
+    --color-primary: var(--primary);
+    --color-primary-foreground: var(--primary-foreground);
+    --color-primary-hover: var(--primary-hover);
+    --color-primary-pressed: var(--primary-pressed);
+    --color-secondary: var(--secondary);
+    --color-secondary-foreground: var(--secondary-foreground);
+    --color-secondary-hover: var(--secondary-hover);
+    --color-muted: var(--muted);
+    --color-muted-foreground: var(--muted-foreground);
+    --color-accent: var(--accent);
+    --color-accent-foreground: var(--accent-foreground);
+    --color-selected: var(--selected);
+    --color-selected-foreground: var(--selected-foreground);
+    --color-destructive: var(--destructive);
+    --color-destructive-hover: var(--destructive-hover);
+    --color-border: var(--border);
+    --color-input: var(--input);
+    --color-ring: var(--ring);
+
+    --color-sidebar: var(--sidebar);
+    --color-sidebar-foreground: var(--sidebar-foreground);
+    --color-sidebar-primary: var(--sidebar-primary);
+    --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+    --color-sidebar-accent: var(--sidebar-accent);
+    --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+    --color-sidebar-border: var(--sidebar-border);
+    --color-sidebar-ring: var(--sidebar-ring);
+
+    /* Lozenge (status label) pairs: background / text */
+    --color-lozenge-neutral: var(--lozenge-neutral);
+    --color-lozenge-neutral-foreground: var(--lozenge-neutral-foreground);
+    --color-lozenge-info: var(--lozenge-info);
+    --color-lozenge-info-foreground: var(--lozenge-info-foreground);
+    --color-lozenge-success: var(--lozenge-success);
+    --color-lozenge-success-foreground: var(--lozenge-success-foreground);
+    --color-lozenge-warning: var(--lozenge-warning);
+    --color-lozenge-warning-foreground: var(--lozenge-warning-foreground);
+    --color-lozenge-danger: var(--lozenge-danger);
+    --color-lozenge-danger-foreground: var(--lozenge-danger-foreground);
+    --color-lozenge-discovery: var(--lozenge-discovery);
+    --color-lozenge-discovery-foreground: var(--lozenge-discovery-foreground);
+
+    /* Radius: about 3px for controls, 4px for cards and dialogs */
+    --radius-sm: calc(var(--radius) * 0.5);
+    --radius-md: calc(var(--radius) * 0.8);
+    --radius-lg: var(--radius);
+    --radius-xl: calc(var(--radius) * 1.4);
+    --radius-2xl: calc(var(--radius) * 1.8);
+    --radius-3xl: calc(var(--radius) * 2.2);
+    --radius-4xl: calc(var(--radius) * 2.6);
+
+    --shadow-raised: var(--elevation-raised);
+    --shadow-overlay: var(--elevation-overlay);
+}
+
+:root {
+    --radius: 0.25rem;
+
+    --background: #ffffff;
+    --foreground: #172b4d;
+    --card: #ffffff;
+    --card-foreground: #172b4d;
+    --popover: #ffffff;
+    --popover-foreground: #172b4d;
+
+    --primary: #0c66e4;
+    --primary-foreground: #ffffff;
+    --primary-hover: #0055cc;
+    --primary-pressed: #09326c;
+
+    --secondary: #f1f2f4;
+    --secondary-hover: #dcdfe4;
+    --secondary-foreground: #172b4d;
+    --muted: #f7f8f9;
+    --muted-foreground: #44546f;
+    --accent: #f1f2f4;
+    --accent-foreground: #172b4d;
+    --selected: #e9f2ff;
+    --selected-foreground: #0c66e4;
+
+    --destructive: #c9372c;
+    --destructive-hover: #ae2e24;
+
+    --border: #dcdfe4;
+    --input: #8590a2;
+    --ring: #388bff;
+
+    --sidebar: #ffffff;
+    --sidebar-foreground: #172b4d;
+    --sidebar-primary: #0c66e4;
+    --sidebar-primary-foreground: #ffffff;
+    --sidebar-accent: #f1f2f4;
+    --sidebar-accent-foreground: #172b4d;
+    --sidebar-border: #dcdfe4;
+    --sidebar-ring: #388bff;
+
+    --lozenge-neutral: #dcdfe4;
+    --lozenge-neutral-foreground: #172b4d;
+    --lozenge-info: #cce0ff;
+    --lozenge-info-foreground: #0055cc;
+    --lozenge-success: #baf3db;
+    --lozenge-success-foreground: #216e4e;
+    --lozenge-warning: #f8e6a0;
+    --lozenge-warning-foreground: #7f5f01;
+    --lozenge-danger: #ffd5d2;
+    --lozenge-danger-foreground: #ae2e24;
+    --lozenge-discovery: #dfd8fd;
+    --lozenge-discovery-foreground: #5e4db2;
+
+    --elevation-raised: 0 1px 1px #091e4240, 0 0 1px #091e424f;
+    --elevation-overlay: 0 8px 12px #091e4226, 0 0 1px #091e424f;
+}
+
+.dark {
+    --background: #1d2125;
+    --foreground: #b6c2cf;
+    --card: #22272b;
+    --card-foreground: #b6c2cf;
+    --popover: #282e33;
+    --popover-foreground: #b6c2cf;
+
+    --primary: #579dff;
+    --primary-foreground: #1d2125;
+    --primary-hover: #85b8ff;
+    --primary-pressed: #cce0ff;
+
+    --secondary: #2c333a;
+    --secondary-hover: #38414a;
+    --secondary-foreground: #b6c2cf;
+    --muted: #22272b;
+    --muted-foreground: #9fadbc;
+    --accent: #2c333a;
+    --accent-foreground: #b6c2cf;
+    --selected: #1c2b41;
+    --selected-foreground: #85b8ff;
+
+    --destructive: #f87168;
+    --destructive-hover: #fd9891;
+
+    --border: #38414a;
+    --input: #738496;
+    --ring: #85b8ff;
+
+    --sidebar: #1d2125;
+    --sidebar-foreground: #b6c2cf;
+    --sidebar-primary: #579dff;
+    --sidebar-primary-foreground: #1d2125;
+    --sidebar-accent: #2c333a;
+    --sidebar-accent-foreground: #b6c2cf;
+    --sidebar-border: #38414a;
+    --sidebar-ring: #85b8ff;
+
+    --lozenge-neutral: #38414a;
+    --lozenge-neutral-foreground: #b6c2cf;
+    --lozenge-info: #09326c;
+    --lozenge-info-foreground: #85b8ff;
+    --lozenge-success: #1c3329;
+    --lozenge-success-foreground: #7ee2b8;
+    --lozenge-warning: #413001;
+    --lozenge-warning-foreground: #f5cd47;
+    --lozenge-danger: #42221f;
+    --lozenge-danger-foreground: #fd9891;
+    --lozenge-discovery: #352c63;
+    --lozenge-discovery-foreground: #b8acf6;
+
+    --elevation-raised: 0 1px 1px #03040442, 0 0 1px #03040480;
+    --elevation-overlay: 0 8px 12px #0304045c, 0 0 1px #03040480;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    @apply font-sans;
+  }
+  body {
+    /* 14px / 20px, the Jira base size */
+    @apply bg-background text-sm text-foreground antialiased;
+  }
+  a {
+    @apply text-primary hover:underline;
+  }
+}
