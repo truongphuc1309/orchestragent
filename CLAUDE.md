@@ -8,9 +8,9 @@ that the code alone does not explain.
 
 ## Status
 
-Steps 0 to 8 of `PLAN.md` are implemented and **committed by the human**. **Step 9 (the daemon and the mock provider)
-is implemented and not committed yet** (waiting for the human's review). Next is step 10 (Claude Code provider), then
-11 (usage and inbox), 12 (E2E and docs).
+Steps 0 to 9 of `PLAN.md` are implemented and **committed by the human**. **Step 10 (the Claude Code provider) is
+implemented and not committed yet** (waiting for the human's review). Next is step 11 (usage and inbox), then 12 (E2E
+and docs).
 
 | Step | What | Commit |
 | ---- | ---- | ------ |
@@ -22,10 +22,19 @@ is implemented and not committed yet** (waiting for the human's review). Next is
 | 6 | Live updates over SSE | `70e393a` |
 | 7 | Agents, runtimes, assigning issues to agents | `ffe60a4` |
 | 8 | Task queue, daemon API, review gate (needs human review) | `e3f06fa` |
-| 9 | Daemon CLI, provider SPI, mock provider | not committed |
+| 9 | Daemon CLI, provider SPI, mock provider | `5a59664` |
+| 10 | Claude Code provider | not committed |
 
-Last full run (step 9): `./gradlew build` 781 tests (696 backend, 85 daemon), frontend 357 tests (26 files);
-`typecheck`, `lint`, `build` clean. The daemon was run by hand with the mock provider against the real app: assign →
+Last full run (step 10): `./gradlew build` 813 tests (696 backend, 117 daemon; the real-Claude smoke test skipped),
+0 failures. Frontend unchanged since step 9 (357 tests). By hand: `doctor` and `start` found the real Claude Code
+2.1.311 (from inside a Claude Code shell, `CLAUDECODE=1`), registered a `claude` runtime, and reported a wrong
+`claude.permissionMode` and the `bypassPermissions` warning. With the user's permission (it costs money) the real
+Claude ran: the smoke test (`ORCHESTRAGENT_RUN_REAL_CLAUDE=1`, haiku, answer then resume) passed, and in the app an
+agent on haiku created a file → comment → in review → request changes → resumed the same session in the same folder
+and edited the file → approve → done (each run under $0.01). A real stream-json run was recorded, cleaned of paths and
+account details, and kept as the fixture `real-2.1.311-haiku.jsonl`. Always ask before running the real Claude.
+
+Step 9 by hand: the daemon was run with the mock provider against the real app: assign →
 in progress → live log → agent comment → in review → request changes (resumed in the same folder) → approve → done;
 cancel of a hanging run; `[mock:fail]` → blocked. Ctrl+C (graceful stop) was **not** tried by hand: background
 processes in this harness can only be killed hard; `DaemonTest` covers it.
@@ -45,6 +54,24 @@ processes in this harness can only be killed hard; `DaemonTest` covers it.
 - Known, not fixed: when a browser leaves a page, the backend logs `AuthorizationDeniedException ... response is
   already committed` for the closing SSE stream (async dispatch goes through Spring Security again). Noise from
   step 6, unrelated to the daemon.
+
+## The Claude Code provider (step 10)
+
+- `daemon-provider-claude`, package `com.orchestragent.daemon.provider.claude`: `StreamJsonParser`, `ClaudeSettings`
+  (the `"claude"` section of `config.json`, through `AgentProvider.configure(ProviderSettings)`), `Executables`
+  (PATH/PATHEXT lookup; a `.cmd` runs as `cmd.exe /d /s /c "<whole line>"`, one argument, quoted by hand),
+  `ClaudeProvider`.
+- Process tests use `FakeClaude`, a Java main class in the test sources started as a real process
+  (`java -cp <test classes> FakeClaude`); the scenario is named in the prompt (`scenario:hang`, ...). Tests that could
+  hang use `assertTimeoutPreemptively`, and every fake child exits by itself after 2 minutes.
+- **Windows pitfall found by a break-the-rule run:** a child process that survives keeps the CLI's stdout open, and
+  closing that pipe from another thread blocks forever on Windows (JUnit `@Timeout` cannot interrupt it). The provider
+  therefore kills every process it saw during the run when the run ends, and never waits on a pipe: it closes leftover
+  streams on a background thread and stops the parser.
+- `daemon-cli` commands get their providers from outside (`OrchestragentDaemon.commandLine(store, providers)`), so CLI
+  tests use only the mock and never run a real `claude` found on the machine.
+- Processes started in the background by this harness (`bootRun`, the daemon) survive `TaskStop`, and killing them by
+  PID is not permitted here: ask the user to run `taskkill /PID ... /T /F`.
 
 ## Working agreements with this user
 
@@ -110,8 +137,9 @@ processes in this harness can only be killed hard; `DaemonTest` covers it.
 
 ## Known limitations and open points
 
-- The daemon has only the mock provider; the Claude Code provider is step 10. A daemon registers in the workspaces
-  its owner has when it starts; joining another workspace needs a restart.
+- A daemon registers in the workspaces its owner has when it starts; joining another workspace needs a restart.
+- Real stream-json has more message kinds than the parser shows (`system/thinking_tokens`, `rate_limit_event`,
+  thinking blocks); they are skipped on purpose. Only one real recording exists (haiku, 2.1.311).
 - Cancelling a task leaves the issue in its current status (usually in progress) until someone moves it.
 - `AgentTaskStarted` and `AgentTaskCompleted` are handled on different threads; in theory they can swap if they arrive
   within milliseconds and leave the issue in progress. Not seen in practice.

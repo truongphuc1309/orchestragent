@@ -2,7 +2,9 @@ package com.orchestragent.daemon.cli;
 
 import com.orchestragent.daemon.cli.client.DaemonApiException;
 import com.orchestragent.daemon.cli.config.ConfigStore;
+import com.orchestragent.daemon.provider.AgentProvider;
 import java.io.PrintWriter;
+import java.util.Map;
 import java.util.function.Supplier;
 import java.util.logging.ConsoleHandler;
 import java.util.logging.Handler;
@@ -29,12 +31,15 @@ public final class OrchestragentDaemon implements Runnable {
 
     public static void main(String[] args) {
         configureLogging(false);
-        System.exit(commandLine(ConfigStore::fromEnvironment).execute(args));
+        System.exit(commandLine(ConfigStore::fromEnvironment, Providers::load).execute(args));
     }
 
-    /** The command line; the config store is chosen by the caller (tests use a temporary folder). */
-    static CommandLine commandLine(Supplier<ConfigStore> store) {
-        CommandLine commandLine = new CommandLine(new OrchestragentDaemon(), new Factory(store));
+    /**
+     * The command line. The config store and the providers are chosen by the caller: tests use a temporary folder
+     * and only the mock, so they never start a real AI tool found on the computer.
+     */
+    static CommandLine commandLine(Supplier<ConfigStore> store, Supplier<Map<String, AgentProvider>> providers) {
+        CommandLine commandLine = new CommandLine(new OrchestragentDaemon(), new Factory(store, providers));
         commandLine.setExecutionExceptionHandler(OrchestragentDaemon::handle);
         return commandLine;
     }
@@ -92,17 +97,17 @@ public final class OrchestragentDaemon implements Runnable {
     }
 
     /** Hands the config store to the subcommands. */
-    private record Factory(Supplier<ConfigStore> store) implements CommandLine.IFactory {
+    private record Factory(Supplier<ConfigStore> store, Supplier<Map<String, AgentProvider>> providers) implements CommandLine.IFactory {
         @Override
         public <K> K create(Class<K> type) throws Exception {
             if (type == LoginCommand.class) {
                 return type.cast(new LoginCommand(store.get()));
             }
             if (type == DoctorCommand.class) {
-                return type.cast(new DoctorCommand(store.get()));
+                return type.cast(new DoctorCommand(store.get(), providers));
             }
             if (type == StartCommand.class) {
-                return type.cast(new StartCommand(store.get()));
+                return type.cast(new StartCommand(store.get(), providers));
             }
             return CommandLine.defaultFactory().create(type);
         }

@@ -19,6 +19,15 @@ public interface AgentProvider {
      */
     String id();
 
+    /**
+     * Receives the provider's settings from the daemon's {@code config.json}, once, before {@link #detect()} and
+     * {@link #run}. The default ignores them.
+     *
+     * @throws IllegalArgumentException when a setting is wrong; the message is shown to the user
+     */
+    default void configure(ProviderSettings settings) {
+    }
+
     /** Looks for the tool on this computer. Empty when it is not installed or does not answer. Must not throw. */
     Optional<ProviderInfo> detect();
 

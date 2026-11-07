@@ -19,6 +19,7 @@ import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.function.Supplier;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
@@ -48,9 +49,11 @@ final class StartCommand implements Callable<Integer> {
     CommandLine.Model.CommandSpec spec;
 
     private final ConfigStore store;
+    private final Supplier<Map<String, AgentProvider>> providers;
 
-    StartCommand(ConfigStore store) {
+    StartCommand(ConfigStore store, Supplier<Map<String, AgentProvider>> providers) {
         this.store = store;
+        this.providers = providers;
     }
 
     @Override
@@ -65,7 +68,7 @@ final class StartCommand implements Callable<Integer> {
                 .orElseThrow(() -> new UserError("Not logged in; run login --server URL --token oat_... first"));
 
         Map<String, AgentProvider> selected = new LinkedHashMap<>();
-        List<ProviderInfo> registered = Providers.select(Providers.load(), providerNames).stream()
+        List<ProviderInfo> registered = Providers.select(Providers.configure(providers.get(), store), providerNames).stream()
                 .peek(found -> selected.put(found.provider().id(), found.provider()))
                 .map(found -> new ProviderInfo(found.provider().id(), found.info().orElseThrow().version()))
                 .toList();

@@ -2,6 +2,7 @@ package com.orchestragent.daemon.cli.config;
 
 import com.orchestragent.daemon.cli.UserError;
 import com.orchestragent.daemon.cli.client.DaemonClient;
+import com.orchestragent.daemon.provider.ProviderSettings;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.URI;
@@ -19,9 +20,11 @@ import java.nio.file.attribute.PosixFilePermissions;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import tools.jackson.core.JacksonException;
+import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ObjectNode;
 
@@ -79,6 +82,25 @@ public final class ConfigStore {
             throw new UserError(file + " is incomplete; run login again");
         }
         return Optional.of(new DaemonConfig(parseServer(server), token, daemonId));
+    }
+
+    /**
+     * The settings of a provider: the object under its ID, such as {@code "claude": {...}}. Empty when the file or
+     * the section is missing.
+     */
+    public ProviderSettings providerSettings(String providerId) {
+        if (!Files.exists(file())) {
+            return ProviderSettings.empty(providerId);
+        }
+        JsonNode section = readTree(file()).get(providerId);
+        if (section == null || section.isNull()) {
+            return ProviderSettings.empty(providerId);
+        }
+        if (!section.isObject()) {
+            throw new UserError("\"" + providerId + "\" in " + file() + " must be a JSON object of settings");
+        }
+        Map<String, Object> values = DaemonClient.JSON.convertValue(section, new TypeReference<Map<String, Object>>() {});
+        return new ProviderSettings(providerId, values);
     }
 
     /**

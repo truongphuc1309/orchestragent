@@ -1,5 +1,6 @@
 package com.orchestragent.daemon.cli;
 
+import com.orchestragent.daemon.cli.config.ConfigStore;
 import com.orchestragent.daemon.provider.AgentProvider;
 import com.orchestragent.daemon.provider.ProviderInfo;
 import java.util.ArrayList;
@@ -25,6 +26,18 @@ public final class Providers {
         Map<String, AgentProvider> providers = new LinkedHashMap<>();
         for (AgentProvider provider : ServiceLoader.load(AgentProvider.class)) {
             providers.putIfAbsent(provider.id(), provider);
+        }
+        return providers;
+    }
+
+    /** Hands each provider its settings from {@code config.json}; a wrong setting is a {@link UserError}. */
+    public static Map<String, AgentProvider> configure(Map<String, AgentProvider> providers, ConfigStore store) {
+        for (AgentProvider provider : providers.values()) {
+            try {
+                provider.configure(store.providerSettings(provider.id()));
+            } catch (IllegalArgumentException e) {
+                throw new UserError(e.getMessage());
+            }
         }
         return providers;
     }

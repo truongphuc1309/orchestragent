@@ -4,9 +4,9 @@ People and AI agents working on the same issues. Assign an issue to an agent lik
 teammate: a local daemon picks up the task, runs Claude Code CLI on your machine, streams progress in
 real time, and moves the issue to review for a human to approve.
 
-> Status: step 9 of `PLAN.md` (the daemon and its mock provider) is implemented on top of steps 1 to 8. The daemon runs
-> agents with the mock provider; the Claude Code provider (step 10), usage and inbox (step 11) and the end-to-end tests
-> (step 12) are still to come.
+> Status: step 10 of `PLAN.md` (the Claude Code provider) is implemented on top of steps 1 to 9: the daemon runs agents
+> with Claude Code or with the mock provider. Usage and inbox (step 11) and the end-to-end tests (step 12) are still to
+> come.
 
 ## Requirements
 
@@ -194,8 +194,50 @@ cancel)`, and are found with `java.util.ServiceLoader`, so a new tool is a new m
 it pauses between steps (`ORCHESTRAGENT_MOCK_STEP_MS`, default 1000), sends four or five log lines, writes
 `mock-notes.md` in the task folder and answers with a text that names the issue. Put `[mock:fail]`, `[mock:hang]` or
 `[mock:crash]` in the issue title, description or a comment to make it fail, hang until cancelled or timed out, or
-throw; the last marker wins, so a later comment with `[mock:ok]` makes it succeed again. The Claude Code provider is
-step 10.
+throw; the last marker wins, so a later comment with `[mock:ok]` makes it succeed again.
+
+### The Claude Code provider (step 10)
+
+The `claude` provider (`daemon/daemon-provider-claude`) runs the Claude Code CLI that is installed and signed in on
+the computer. `doctor` shows whether it was found (`claude --version`, looked up on `PATH`; on Windows `claude.exe`, or
+`claude.cmd` from npm, which is started through `cmd.exe`). A run is
+
+```
+claude -p --output-format stream-json --verbose --permission-mode <mode> [--model M] [--resume SESSION]
+       [--allowedTools ...] --disallowedTools AskUserQuestion [...]
+```
+
+in the task folder, with the prompt on standard input (so no issue text is ever a command-line argument). Each line of
+output is JSON: the session ID comes from the `init` message, assistant text and tool calls and tool results become the
+live log, and the `result` message gives the final answer (the agent's comment), the tokens (input counts prompt-cache
+reads and writes) and the cost. Tool calls show their main argument (`Bash npm test`, `Write notes/BYE.md`; paths in
+the task folder are relative). A run stops when it takes longer than `--task-timeout` (30 minutes by default) or prints
+nothing for 10 minutes, and when the task is cancelled; stopping kills the whole process tree. When a run ends, any
+process it started that is still running (a dev server left in the background, say) is killed too. A later run on the same
+issue resumes the session in the same folder; when Claude Code says the session no longer exists, the run starts once
+more without it. Variables that Claude Code sets for its own child processes (`CLAUDECODE`, ...) are not passed on, so
+the daemon can be started from a Claude Code terminal.
+
+What Claude may do is set in the `"claude"` section of `~/.orchestragent/config.json` (`login` keeps it):
+
+```json
+"claude": {
+  "permissionMode": "acceptEdits",
+  "allowedTools": ["Bash(npm test:*)", "Bash(git diff:*)"],
+  "disallowedTools": [],
+  "idleTimeoutMinutes": 10,
+  "command": "claude"
+}
+```
+
+The default `acceptEdits` lets the agent read and edit files in its task folder; commands run only when `allowedTools`
+allows them. `bypassPermissions` lets it do anything the account can do; the daemon uses it only when you set it, and
+prints a warning. A wrong setting stops `start` and `doctor` with a message. `AskUserQuestion` is always disallowed,
+because nobody can answer a question during a run.
+
+Tests never run the real CLI: the parser reads JSONL fixtures (one of them recorded from Claude Code 2.1.311) and the
+process handling runs a fake CLI (a small Java program). One smoke test runs the real one and costs money:
+`ORCHESTRAGENT_RUN_REAL_CLAUDE=1 ./gradlew :daemon:daemon-provider-claude:test --tests '*RealClaudeSmokeTest'`.
 
 ### Frontend (step 3)
 

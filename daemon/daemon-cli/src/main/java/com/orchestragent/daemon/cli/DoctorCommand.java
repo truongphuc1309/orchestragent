@@ -9,6 +9,7 @@ import java.io.PrintWriter;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.Callable;
+import java.util.function.Supplier;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
 
@@ -23,21 +24,18 @@ final class DoctorCommand implements Callable<Integer> {
     CommandLine.Model.CommandSpec spec;
 
     private final ConfigStore store;
-    private final Map<String, AgentProvider> available;
+    private final Supplier<Map<String, AgentProvider>> providers;
 
-    DoctorCommand(ConfigStore store) {
-        this(store, Providers.load());
-    }
-
-    DoctorCommand(ConfigStore store, Map<String, AgentProvider> available) {
+    DoctorCommand(ConfigStore store, Supplier<Map<String, AgentProvider>> providers) {
         this.store = store;
-        this.available = available;
+        this.providers = providers;
     }
 
     @Override
     public Integer call() {
         PrintWriter out = spec.commandLine().getOut();
         boolean healthy = true;
+        Map<String, AgentProvider> available = Providers.configure(providers.get(), store);
 
         out.println("Providers:");
         boolean anyInstalled = false;
