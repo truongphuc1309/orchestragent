@@ -10,6 +10,11 @@ dependencies {
     implementation(project(":backend:agent:agent-infrastructure"))
     implementation(project(":backend:inbox:inbox-infrastructure"))
 
+    // The dev-profile seeder (composition root) calls these use cases directly, like the web API does.
+    implementation(project(":backend:identity:identity-application"))
+    implementation(project(":backend:workspace:workspace-application"))
+    implementation(project(":backend:issue:issue-application"))
+
     // Integration tests replace ports of the contexts (for example the mail sender) with mocks.
     testImplementation(project(":backend:identity:identity-application"))
     testImplementation(project(":backend:workspace:workspace-application"))

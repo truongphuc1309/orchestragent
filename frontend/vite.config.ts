@@ -10,10 +10,11 @@ export default defineConfig({
     alias: { '@': path.resolve(import.meta.dirname, 'src') },
   },
   server: {
-    port: 5173,
+    // The end-to-end tests run a second copy next to the one a developer may have open (e2e/).
+    port: Number(process.env.FRONTEND_PORT ?? 5173),
     // Same-origin API calls in development, so the session and CSRF cookies work without CORS.
     proxy: {
-      '/api': { target: 'http://localhost:8080' },
+      '/api': { target: process.env.API_PROXY_TARGET ?? 'http://localhost:8080' },
     },
   },
   test: {

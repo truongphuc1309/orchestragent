@@ -4,8 +4,8 @@ People and AI agents working on the same issues. Assign an issue to an agent lik
 teammate: a local daemon picks up the task, runs Claude Code CLI on your machine, streams progress in
 real time, and moves the issue to review for a human to approve.
 
-> Status: step 11 of `PLAN.md` (usage and inbox) is implemented on top of steps 1 to 10. The end-to-end tests and the
-> final polish (step 12) are still to come.
+> Status: all twelve steps of `PLAN.md` are implemented, including the end-to-end test, the login rate limit, the
+> development seed data and the report notes ([docs/architecture-report.md](docs/architecture-report.md)).
 
 ## Requirements
 
@@ -265,6 +265,53 @@ unread count, `GET .../inbox/unread-count` only the count (the badge next to **I
 notifications (404). The live update `inbox.updated` goes only to the browsers of the person whose inbox changed: the
 event stream now knows who opened each connection.
 
+### Hardening, seed data and end-to-end tests (step 12)
+
+**Login rate limit.** `POST /api/auth/code` allows at most 10 requests per client address in any 10 minutes (on top of
+the rule of one code per email address per minute); the next one answers `429` with a `Retry-After` header and the
+code `login.ip_rate_limited`, and no email is sent. The count is kept in memory (`SlidingWindowRateLimiter` in
+`platform`), so each server instance counts for itself, and rejected requests are not counted. Change it with
+`orchestragent.rate-limit.auth-code.max-requests` and `orchestragent.rate-limit.auth-code.window` (for example
+`--orchestragent.rate-limit.auth-code.window=30m`). The address is the one the servlet container reports: **behind a
+reverse proxy set `server.forward-headers-strategy=native`** (and make sure the proxy overwrites
+`X-Forwarded-For`), otherwise every user looks like the proxy and shares one limit.
+
+**Loading, empty and error states.** Every page shows a skeleton while it loads, a message with a "Try again"
+button when the request fails, and a sentence that says what to do when there is nothing yet. A page that crashes
+while rendering shows a "Something went wrong" page (`RouteErrorPage`) instead of a blank screen; its details go only
+to the browser console.
+
+**Seed data.** With the `dev` profile, an empty database gets a demo user and a workspace on the first start
+(`DevDataSeeder`): sign in as `demo@example.com` with the fixed `DEV_LOGIN_CODE`. The workspace "Demo" has eight
+issues in every status and a few comments. It runs once (nothing happens when the demo user exists) and never stops
+the application if it fails; turn it off with `--orchestragent.dev-seed.enabled=false`. No agent is seeded, because
+an agent needs a runtime and a runtime exists only after a daemon on a computer registers: create the first agent in
+the web app after `orchestragent-daemon start` (see the demo script below).
+
+**End-to-end test** (`e2e/`, Playwright). One story, in a real browser, against the real thing: sign in with the dev
+code, create a workspace, connect a daemon (mock provider), create an agent, create an issue assigned to it, wait for
+"In review", request changes, wait for "In review" again, approve, see "Done", and find the notification in the inbox.
+No AI model is called.
+
+```bash
+docker compose up -d                                  # Postgres and Mailpit must run
+pnpm -C frontend install && pnpm -C e2e install       # once
+pnpm -C e2e test                                      # builds the jar and the daemon, starts everything, runs, stops
+```
+
+- It uses your installed Google Chrome, so nothing is downloaded (`E2E_BROWSER=msedge` for Edge, or
+  `E2E_BROWSER=chromium` after `pnpm -C e2e exec playwright install chromium`).
+- It starts its own backend on port 18080 and Vite on 15173 and recreates an empty database `orchestragent_e2e` in the
+  Postgres container of `docker compose` (`E2E_POSTGRES_CONTAINER` if you named it differently), so a backend or
+  frontend you have open, and your development data, are not touched. The daemon uses a throwaway
+  `ORCHESTRAGENT_HOME`. The login code and the JWT secret of the run are made up for the run.
+- `E2E_SKIP_BUILD=1` skips the Gradle call (use it when nothing changed). JDK 21 must be found through `JAVA_HOME`
+  or `PATH`.
+- A daemon registers only in the workspaces that exist when it starts, so the test starts the daemon after it created
+  the workspace instead of in the global setup.
+- Logs of the backend, Vite and daemon are in `e2e/test-results/logs/`; a failed run keeps a screenshot and a trace
+  (`pnpm -C e2e exec playwright show-trace <trace.zip>`).
+
 ### Frontend (step 3)
 
 ```bash
@@ -285,6 +332,123 @@ Layout of `frontend/src`: `app/` (router, providers), `features/<feature>/` (`ap
 (shadcn/ui components). Every API response is parsed with a zod schema; type assertions (`as T`) and `any`
 are lint errors outside the generated `shared/ui` files.
 
+## Architecture
+
+Orchestragent is a **modular monolith**: one Spring Boot application, split into bounded contexts that talk only
+through small public modules (`*-contract`). The rules are enforced by Gradle dependencies, by ArchUnit tests and by a
+test that checks no SQL crosses a schema. Why this shape, and how to split it into services later, is in
+[docs/architecture-report.md](docs/architecture-report.md).
+
+**Context map.** An arrow means "uses the contract of". `platform` (security, errors, events, SSE) is shared
+infrastructure.
+
+```mermaid
+flowchart LR
+    identity["identity<br/>users, login codes, API tokens"]
+    workspace["workspace<br/>workspaces, members, invitations"]
+    issue["issue<br/>issues, comments, review gate"]
+    agent["agent<br/>agents, runtimes, tasks, usage"]
+    inbox["inbox<br/>notifications"]
+
+    workspace --> identity
+    issue --> identity
+    issue --> workspace
+    issue --> agent
+    agent --> identity
+    agent --> workspace
+    agent --> issue
+    inbox --> identity
+    inbox --> workspace
+    inbox --> issue
+    inbox --> agent
+```
+
+`issue` and `agent` use each other, but for different things: `issue` asks `agent` whether an agent may be assigned
+(`AgentDirectory`, synchronous) and `agent` asks `issue` for the issue behind a task (`IssueDirectory`); everything
+else travels as integration events, delivered after the commit with the Spring Modulith event publication registry
+(transactional outbox) and handled by idempotent listeners.
+
+**Life of a task.**
+
+```mermaid
+sequenceDiagram
+    actor P as Person
+    participant W as Web app
+    participant S as Server
+    participant D as Daemon
+    participant A as AI tool (provider)
+
+    P->>W: assign issue to agent
+    W->>S: PUT /issues/{id}/assignee
+    S-->>S: IssueAssigneeChanged, then TaskPlanner queues a task
+    D->>S: POST /api/daemon/tasks/claim (every 3 s)
+    S-->>D: task, agent, issue, comments (state: dispatched)
+    D->>S: POST /tasks/{id}/start (state: running, issue: in progress)
+    D->>A: run in the task folder, prompt on stdin
+    loop while running
+        A-->>D: output lines
+        D->>S: POST /tasks/{id}/messages (batches)
+        S-->>W: SSE task.message, the live log grows
+    end
+    D->>S: POST /tasks/{id}/complete (result, tokens, cost)
+    S-->>S: result becomes an agent comment, issue: in review
+    S-->>W: SSE, plus a notification for the creator
+    alt approve
+        P->>W: Approve
+        W->>S: POST /issues/{id}/approve (issue: done)
+    else request changes
+        P->>W: Request changes + comment
+        W->>S: POST /issues/{id}/request-changes
+        S-->>S: new task (resumes the same session and folder)
+    end
+```
+
+## Adding a provider
+
+A provider is how the daemon runs one AI tool. Adding one means adding a module; the daemon itself does not change.
+
+1. Create `daemon/daemon-provider-<name>` with `plugins { id("oa.java-library") }` and a dependency on
+   `:daemon:daemon-provider-api`. Add it to `settings.gradle.kts` and as `runtimeOnly(project(...))` in
+   `daemon/daemon-cli/build.gradle.kts`. Versions of libraries go in `gradle/libs.versions.toml`.
+2. Implement `AgentProvider` (package `com.orchestragent.daemon.provider`):
+   - `id()`: the short code stored on the runtime (`[a-z0-9][a-z0-9._-]{0,49}`).
+   - `detect()`: look for the tool (return empty when it is not installed; never throw).
+   - `run(request, listener, cancel)`: do the work, send progress with `listener.onMessage(type, text)`, return a
+     `RunResult` (completed with the output, tokens and cost, or failed with a reason). A tool that fails is a
+     failed result, not an exception. Return soon after `cancel` fires and kill everything you started. One provider
+     object serves several tasks at once, so keep per-run state out of fields.
+   - Optional: `configure(settings)` reads your section of `~/.orchestragent/config.json`, and `enabledByDefault()` says
+     whether `start` uses it when no `--providers` are given.
+3. List the class in `src/main/resources/META-INF/services/com.orchestragent.daemon.provider.AgentProvider`.
+4. Test it without the real tool: the mock provider and the fake `claude` of `daemon-provider-claude` are examples
+   (a small program started as a real process). Tests never run a real AI tool; a test that does must be switched on
+   by an environment variable (`ORCHESTRAGENT_RUN_REAL_CLAUDE=1` is the model).
+5. `orchestragent-daemon doctor` lists the new provider, and `start --providers <name>` runs it.
+
+## Demo script
+
+About ten minutes, with the mock provider (no AI model, no cost). Start with `docker compose up -d`.
+
+1. Backend: `JWT_SECRET=<32+ random bytes> DEV_LOGIN_CODE=123456 ./gradlew :backend:app:bootRun --args='--spring.profiles.active=dev'`.
+   The log says that seed data was created.
+2. Frontend: `pnpm -C frontend dev`, open http://localhost:5173, sign in as `demo@example.com` with the code `123456`.
+3. Look around the seeded "Demo" workspace: the board (drag a card), the list and its filters, an issue with its
+   comments, Members.
+4. Settings > API tokens: create a token and copy it.
+5. Daemon: `./gradlew :daemon:daemon-cli:installDist`, then in `daemon/daemon-cli/build/install/orchestragent-daemon/bin`
+   run `orchestragent-daemon login --server http://localhost:8080 --token` (paste the token), then
+   `orchestragent-daemon start --providers mock`.
+6. Runtimes: the computer appears as online. Agents > Create agent ("Mock Writer", pick the runtime).
+7. Open "Write the API documentation" (or create an issue) and assign it to the agent. Watch the status go to "In
+   progress", the live log fill, the agent's comment appear and the status go to "In review".
+8. Request changes with a comment: a second run starts in the same folder and resumes the same session. When it is in
+   review again, press Approve: the issue is done.
+9. Inbox shows what happened (with a badge while unread), Usage shows runs, tokens and cost per day and per agent.
+10. Put `[mock:fail]` in a comment to see a failed run: the issue goes to "Blocked" with a system comment.
+
+For a run with the real Claude Code, start the daemon with `--providers claude` instead (it costs money; give it a
+small issue first).
+
 ## Environment variables
 
 | Variable         | Purpose                                                             |
@@ -298,6 +462,16 @@ are lint errors outside the generated `shared/ui` files.
 | `APP_BASE_URL`   | Public URL of the web app, used in emails                           |
 | `DEV_LOGIN_CODE` | Fixed login code, accepted only with the `dev` profile              |
 
+Other settings are Spring properties (`--name=value`, or the matching environment variable):
+
+| Property                                          | Default | Purpose                                                |
+| ------------------------------------------------- | ------- | ------------------------------------------------------ |
+| `orchestragent.rate-limit.auth-code.max-requests` | `10`    | Login codes one client address may ask for per window  |
+| `orchestragent.rate-limit.auth-code.window`       | `10m`   | Length of that window                                  |
+| `orchestragent.dev-seed.enabled`                  | `true`  | `dev` profile only: create the demo user and workspace |
+
+The end-to-end tests read `E2E_BROWSER`, `E2E_SKIP_BUILD` and `E2E_POSTGRES_CONTAINER` (see above).
+
 ## Project layout
 
 ```
@@ -305,7 +479,7 @@ build-logic/   Gradle convention plugins (oa.java-library, oa.spring-library, oa
 backend/       Spring Boot modular monolith: shared-kernel, platform, identity, workspace, issue, agent, inbox, app
 daemon/        Java daemon that runs agents locally (protocol, provider SPI, mock and Claude providers, CLI)
 frontend/      React + Vite + TypeScript + shadcn/ui
-e2e/           Playwright tests (step 12)
+e2e/           Playwright end-to-end test (real browser, backend, database and daemon with the mock provider)
 ```
 
 Architecture and coding rules: see [AGENTS.md](AGENTS.md). Full plan: see [PLAN.md](PLAN.md).

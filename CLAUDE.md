@@ -8,9 +8,9 @@ that the code alone does not explain.
 
 ## Status
 
-Steps 0 to 10 of `PLAN.md` are implemented and **committed by the human**. **Step 11 (usage and inbox) is implemented
-and not committed yet** (waiting for the human's review). Next is step 12 (E2E with Playwright, rate limit, seed data,
-docs).
+Steps 0 to 11 of `PLAN.md` are implemented and **committed by the human**. **Step 12 (E2E with Playwright, login
+rate limit, seed data, docs) is implemented and not committed yet** (waiting for the human's review). All steps of the
+plan are done; what is left is review, committing, and the open points below.
 
 | Step | What | Commit |
 | ---- | ---- | ------ |
@@ -24,9 +24,15 @@ docs).
 | 8 | Task queue, daemon API, review gate (needs human review) | `e3f06fa` |
 | 9 | Daemon CLI, provider SPI, mock provider | `5a59664` |
 | 10 | Claude Code provider | `30e90bc` |
-| 11 | Usage page, inbox context and page | not committed |
+| 11 | Usage page, inbox context and page | `52d0020` |
+| 12 | Login rate limit, dev seed data, Playwright E2E, docs | not committed |
 
-Last full run (step 11): `./gradlew build` 851 tests (731 backend, 120 daemon; the real-Claude smoke test skipped),
+Last full run (step 12): `./gradlew build` 865 tests (745 backend, 120 daemon; the real-Claude smoke test skipped),
+frontend 374 tests (31 files), E2E 1 test passing; `typecheck`, `lint`, `build` clean. 5 break-the-rule checks each failed
+the right test (see PLAN.md step 12). Not done by hand: the seed data on the real dev database (only an integration test
+on Postgres).
+
+Previous run (step 11): `./gradlew build` 851 tests (731 backend, 120 daemon; the real-Claude smoke test skipped),
 frontend 371 tests (29 files); `typecheck`, `lint`, `build` clean. 12 break-the-rule checks each failed the right test.
 By hand (mock daemon, dev backend): the inbox page updated live (no reload) when the mock agent finished an issue and
 when a second user (logged in with the dev code from a script) assigned an issue; the badge counted 1, 2, then 1 after
@@ -92,6 +98,25 @@ processes in this harness can only be killed hard; `DaemonTest` covers it.
 - Frontend `fakeServer` answers `GET /api/workspaces/{id}/inbox/unread-count` with 0 when a test does not handle it
   (every workspace page asks for it, for the sidebar badge). That is the only default; tests of the badge handle it.
 - The daily usage chart is plain HTML/CSS (no chart library), one measure at a time, with a table view.
+
+## Hardening, seed data and E2E (step 12)
+
+- Rate limit of `POST /api/auth/code` per IP: `SlidingWindowRateLimiter` (platform, in memory) used by `AuthController`;
+  bean `authCodeRateLimiter` in `IdentityConfig`. The `test` profile sets the limit very high because the whole suite
+  shares one address; `AuthCodeRateLimitTest` has its own context with limit 3. Behind a proxy:
+  `server.forward-headers-strategy=native`.
+- `DevDataSeeder` (`backend/app/.../dev`, `dev` profile): demo user `demo@example.com`, workspace "Demo", 8 issues, no
+  agents (an agent needs a runtime, which only a real daemon creates). `backend/app` therefore depends on three
+  `*-application` modules; nothing else may use them.
+- `RouteErrorPage` is the `errorElement` of every page route. Every page already had loading, empty and error states.
+- E2E: `pnpm -C e2e test` (set `JAVA_HOME` first; Docker must run). Own ports 18080/15173 and own database
+  `orchestragent_e2e` (recreated with `docker exec` into `orchestragent-postgres`), real Chrome (no browser download),
+  `E2E_SKIP_BUILD=1` skips Gradle. The test starts the daemon itself after creating the workspace (a daemon registers
+  only in workspaces that exist at start). Logs: `e2e/test-results/logs/`.
+- Experiment trap: `git checkout <file>` to undo a break-the-rule experiment destroys uncommitted work (the whole step
+  is uncommitted); copy the file to a temp folder first and copy it back.
+- Docs: README has the architecture diagrams (Mermaid), the provider guide and the demo script;
+  `docs/architecture-report.md` (Vietnamese) is the report material.
 
 ## Working agreements with this user
 
@@ -165,7 +190,7 @@ processes in this harness can only be killed hard; `DaemonTest` covers it.
   within milliseconds and leave the issue in progress. Not seen in practice.
 - Two events racing can make one listener hit a unique violation; Modulith redelivers and the next run skips it.
 - Not done: limits on invitations, workspaces and agents per user; mobile navigation (the sidebar is hidden below `md`);
-  unassigning issues of members who leave a workspace; usage and inbox (step 11); Playwright E2E (step 12).
+  unassigning issues of members who leave a workspace; per-user limits and a rate limit on other endpoints; E2E on CI and failure scenarios in E2E.
 - Review focus for steps 2 and 8 (authentication and the daemon API): `DaemonSecurityConfig`, `DaemonController`,
   `TaskExecutionService` (ownership and membership checks), the claim SQL in `TaskRepositoryAdapter`.
 

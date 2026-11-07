@@ -3,3 +3,7 @@ orchestragent:
   security:
     jwt-secret: test-only-secret-that-is-at-least-32-bytes-long
     cookie-secure: false
+  # The whole suite asks for codes from one address (MockMvc's 127.0.0.1); the limit has its own test.
+  rate-limit:
+    auth-code:
+      max-requests: 100000

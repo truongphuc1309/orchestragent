@@ -15,12 +15,14 @@ import { RootRedirectPage } from '@/features/workspace/pages/RootRedirectPage'
 import { WorkspaceHomePage } from '@/features/workspace/pages/WorkspaceHomePage'
 import { WorkspaceLayout } from '@/features/workspace/pages/WorkspaceLayout'
 import { NotFoundPage } from './NotFoundPage'
+import { RouteErrorPage } from './RouteErrorPage'
 
 /** Kept separate from the router instance so tests can mount it in a memory router. */
 export const routes: RouteObject[] = [
-  { path: '/login', element: <LoginPage /> },
+  { path: '/login', element: <LoginPage />, errorElement: <RouteErrorPage /> },
   {
     element: <AuthGuard />,
+    errorElement: <RouteErrorPage />,
     children: [
       { path: '/', element: <RootRedirectPage /> },
       { path: '/onboarding', element: <OnboardingPage /> },

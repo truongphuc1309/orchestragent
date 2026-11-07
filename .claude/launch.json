@@ -1,0 +1,20 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "backend",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": [
+        "/c",
+        "set JAVA_HOME=C:/Users/Admin/.gradle/jdks/eclipse_adoptium-21-amd64-windows.2&& set JWT_SECRET=local-dev-only-throwaway-secret-0123456789&& set DEV_LOGIN_CODE=123456&& set SPRING_PROFILES_ACTIVE=dev&& D:/workspace/projects/orchestragent/gradlew.bat :backend:app:bootRun"
+      ],
+      "port": 8080
+    },
+    {
+      "name": "frontend",
+      "runtimeExecutable": "corepack",
+      "runtimeArgs": ["pnpm@10.18.0", "-C", "frontend", "dev"],
+      "port": 5173
+    }
+  ]
+}
