@@ -2,10 +2,12 @@ import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { routes } from '@/app/routes'
+import { ACME } from '@/test/fixtures'
 import { fakeServer, json, noContent, problem } from '@/test/fakeServer'
 import { renderRoutes } from '@/test/render'
 
 const ADA = { id: '0198f1c0-0000-7000-8000-000000000001', email: 'ada@example.com', name: 'ada' }
+const workspaces = () => json(200, [ACME])
 
 function signedOut() {
   return problem(401, { title: 'Unauthorized' })
@@ -40,6 +42,7 @@ describe('LoginPage', () => {
   it('sends the code, then signs in once six digits are entered', async () => {
     const server = fakeServer({
       'GET /api/me': signedOut,
+      'GET /api/workspaces': workspaces,
       'POST /api/auth/code': () => noContent(),
       'POST /api/auth/verify': () => json(200, ADA),
     })
@@ -52,7 +55,7 @@ describe('LoginPage', () => {
 
     await user.type(screen.getByRole('textbox', { name: /6-digit code/i }), '123456')
 
-    expect(await screen.findByRole('heading', { name: 'Welcome, ada' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Acme' })).toBeInTheDocument()
     expect(server.calls('POST /api/auth/verify')[0]?.body).toEqual({ email: 'ada@example.com', code: '123456' })
   })
 
@@ -125,9 +128,9 @@ describe('LoginPage', () => {
   })
 
   it('skips the login page for a user who is already signed in', async () => {
-    fakeServer({ 'GET /api/me': () => json(200, ADA) })
+    fakeServer({ 'GET /api/me': () => json(200, ADA), 'GET /api/workspaces': workspaces })
     renderRoutes(routes, ['/login'])
 
-    expect(await screen.findByRole('heading', { name: 'Welcome, ada' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Acme' })).toBeInTheDocument()
   })
 })

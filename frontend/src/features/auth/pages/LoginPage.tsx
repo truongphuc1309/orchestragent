@@ -2,7 +2,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { REGEXP_ONLY_DIGITS } from 'input-otp'
 import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
-import { Navigate, useLocation, useNavigate } from 'react-router'
+import { Navigate, useLocation } from 'react-router'
 import { ApiError } from '@/shared/api/errors'
 import { Logo } from '@/shared/layout/Logo'
 import { Button } from '@/shared/ui/button'
@@ -19,10 +19,13 @@ const RESEND_SECONDS = 60
 
 export function LoginPage() {
   const me = useMe()
+  const location = useLocation()
   const [email, setEmail] = useState<string | null>(null)
 
+  // The single place that decides where to go once there is a session: right after a successful login the
+  // cached user appears and this runs, and it also covers someone who opens /login while signed in.
   if (me.data) {
-    return <Navigate to="/" replace />
+    return <Navigate to={redirectTarget(location.state)} replace />
   }
 
   return (
@@ -94,8 +97,6 @@ function CodeStep({ email, onChangeEmail }: { email: string; onChangeEmail: () =
   const resend = useRequestLoginCode()
   const cooldown = useCooldown()
   const startCooldown = cooldown.start
-  const navigate = useNavigate()
-  const location = useLocation()
 
   // The code was just sent by the step before, so the resend button starts out waiting.
   useEffect(() => startCooldown(RESEND_SECONDS), [startCooldown])
@@ -104,13 +105,8 @@ function CodeStep({ email, onChangeEmail }: { email: string; onChangeEmail: () =
     if (value.length !== CODE_LENGTH || verify.isPending) {
       return
     }
-    verify.mutate(
-      { email, code: value },
-      {
-        onSuccess: () => void navigate(redirectTarget(location.state), { replace: true }),
-        onError: () => setCode(''),
-      },
-    )
+    // On success the cached user appears and LoginPage redirects; only a failure needs handling here.
+    verify.mutate({ email, code: value }, { onError: () => setCode('') })
   }
 
   const resendCode = () => {

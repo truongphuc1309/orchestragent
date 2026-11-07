@@ -98,6 +98,11 @@ final class Fakes {
         }
 
         @Override
+        public List<User> findAllById(java.util.Collection<UserId> ids) {
+            return byEmail.values().stream().filter(user -> ids.contains(user.id())).toList();
+        }
+
+        @Override
         public User createIfAbsent(User user) {
             return byEmail.computeIfAbsent(user.email(), email -> user);
         }

@@ -10,6 +10,7 @@ import com.orchestragent.shared.error.ValidationException;
 import jakarta.validation.ConstraintViolationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
@@ -46,6 +47,16 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(ConstraintViolationException.class)
     ResponseEntity<ProblemDetail> handleConstraintViolation(ConstraintViolationException e) {
         return problem(HttpStatus.BAD_REQUEST, e.getMessage(), "validation");
+    }
+
+    /**
+     * A unique or foreign-key constraint fired, typically because two requests raced. The SQL message names
+     * tables and columns, so it is never sent to the client.
+     */
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    ResponseEntity<ProblemDetail> handleDataIntegrity(DataIntegrityViolationException e) {
+        log.warn("Data integrity violation: {}", e.getMostSpecificCause().getMessage());
+        return problem(HttpStatus.CONFLICT, "The change conflicts with existing data. Please try again.", "conflict");
     }
 
     @ExceptionHandler(AccessDeniedException.class)

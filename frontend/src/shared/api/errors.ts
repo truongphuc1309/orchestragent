@@ -36,3 +36,8 @@ export class UnexpectedResponseError extends Error {
     this.path = path
   }
 }
+
+/** A message that is safe to show to the user: the server's explanation for API errors, else the fallback. */
+export function messageOf(error: unknown, fallback: string): string {
+  return error instanceof ApiError ? error.message : fallback
+}

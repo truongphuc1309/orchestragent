@@ -38,5 +38,7 @@ orchestragent:
     cookie-secure: true
   mail:
     from: noreply@orchestragent.local
+  # Public URL of the web app, used for links in emails.
+  app-base-url: ${APP_BASE_URL:http://localhost:5173}
   # Fixed login code. Only the "dev" profile reads it; every other profile ignores it.
   dev-login-code: ${DEV_LOGIN_CODE:}

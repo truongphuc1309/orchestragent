@@ -2,6 +2,7 @@ import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { routes } from '@/app/routes'
+import { ACME } from '@/test/fixtures'
 import { fakeServer, json, noContent, problem } from '@/test/fakeServer'
 import { renderRoutes } from '@/test/render'
 
@@ -20,6 +21,7 @@ describe('UserMenu', () => {
     let signedIn = true
     const server = fakeServer({
       'GET /api/me': () => (signedIn ? json(200, ADA) : problem(401, {})),
+      'GET /api/workspaces': () => json(200, [ACME]),
       'POST /api/auth/logout': () => {
         signedIn = false
         return noContent()

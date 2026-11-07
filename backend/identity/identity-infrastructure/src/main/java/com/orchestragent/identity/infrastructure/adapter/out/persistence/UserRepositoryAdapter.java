@@ -4,6 +4,8 @@ import com.orchestragent.identity.domain.Email;
 import com.orchestragent.identity.domain.User;
 import com.orchestragent.identity.domain.UserId;
 import com.orchestragent.identity.domain.UserRepository;
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 import org.springframework.stereotype.Repository;
 
@@ -24,6 +26,13 @@ class UserRepositoryAdapter implements UserRepository {
     @Override
     public Optional<User> findByEmail(Email email) {
         return jpa.findByEmail(email.value()).map(UserRepositoryAdapter::toDomain);
+    }
+
+    @Override
+    public List<User> findAllById(Collection<UserId> ids) {
+        return jpa.findAllById(ids.stream().map(UserId::value).toList()).stream()
+                .map(UserRepositoryAdapter::toDomain)
+                .toList();
     }
 
     @Override

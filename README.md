@@ -4,8 +4,8 @@ People and AI agents working on the same issues. Assign an issue to an agent lik
 teammate: a local daemon picks up the task, runs Claude Code CLI on your machine, streams progress in
 real time, and moves the issue to review for a human to approve.
 
-> Status: step 3 of `PLAN.md` (frontend skeleton and login page) is implemented on top of step 2
-> (identity). Both are awaiting human review. The other contexts are still empty.
+> Status: step 4 of `PLAN.md` (workspaces and members) is implemented on top of steps 1 to 3. Steps 2 to 4
+> are awaiting human review. The issue, agent and inbox contexts are still empty.
 
 ## Requirements
 
@@ -48,6 +48,21 @@ The daemon API (`/api/daemon/**`) accepts only API tokens (`oat_...`) created vi
 
 With the `dev` profile and `DEV_LOGIN_CODE` set, that fixed code logs in any email address. Other profiles
 ignore `DEV_LOGIN_CODE` completely.
+
+### Workspaces and members (step 4)
+
+A user can belong to several workspaces. The creator is the owner; roles are `owner`, `admin` and `member`:
+owners manage anyone, admins manage members only, members manage nobody (except leaving), and a workspace always
+keeps at least one owner. Admins and owners invite people by email; the email contains a link
+(`APP_BASE_URL/invitations/{id}`), and the invitation can only be accepted by someone signed in with the
+invited address. Anyone who is not a member of a workspace gets `404` from its endpoints, so its existence is not
+revealed. The full rules are in `PLAN.md` (step 4).
+
+REST: `GET|POST /api/workspaces`, `GET /api/workspaces/{id}`, `GET /api/workspaces/{id}/members`,
+`PATCH|DELETE /api/workspaces/{id}/members/{userId}`, `GET|POST /api/workspaces/{id}/invitations`,
+`DELETE /api/workspaces/{id}/invitations/{invitationId}`, `GET /api/invitations`,
+`POST /api/invitations/{id}/accept`. Each context owns its Postgres schema (`workspace` here) and no foreign key
+crosses schemas; a test enforces this.
 
 ### Frontend (step 3)
 

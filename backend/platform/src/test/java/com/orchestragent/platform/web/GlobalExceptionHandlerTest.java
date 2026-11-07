@@ -70,6 +70,14 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
+    void constraintViolationsMapTo409WithoutLeakingSql() throws Exception {
+        mvc.perform(get("/integrity"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("conflict"))
+                .andExpect(jsonPath("$.detail").value(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("members_pkey"))));
+    }
+
+    @Test
     void unexpectedErrorsDoNotLeakDetails() throws Exception {
         mvc.perform(get("/boom"))
                 .andExpect(status().isInternalServerError())
@@ -108,6 +116,12 @@ class GlobalExceptionHandlerTest {
         @GetMapping("/rate-limited")
         void rateLimited() {
             throw new RateLimitedException("Too often", 30);
+        }
+
+        @GetMapping("/integrity")
+        void integrity() {
+            throw new org.springframework.dao.DataIntegrityViolationException(
+                    "duplicate key value violates unique constraint \"members_pkey\"");
         }
 
         @GetMapping("/boom")
