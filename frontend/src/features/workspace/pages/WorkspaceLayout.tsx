@@ -7,7 +7,14 @@ import { Skeleton } from '@/shared/ui/skeleton'
 import { WorkspaceSidebar } from '../components/WorkspaceSidebar'
 import { useWorkspaces } from '../hooks'
 import { useLastWorkspace } from '../lastWorkspace'
+import { useWorkspaceEvents } from '../useWorkspaceEvents'
 import { WorkspaceContext } from '../workspaceContext'
+
+/** Renders nothing; while a workspace is open it keeps the data of that workspace live. */
+function LiveUpdates({ workspaceId }: { workspaceId: string }) {
+  useWorkspaceEvents(workspaceId)
+  return null
+}
 
 /** Route layout of `/w/:slug`: finds the workspace, then shows the top bar, sidebar and the nested page. */
 export function WorkspaceLayout() {
@@ -69,6 +76,7 @@ export function WorkspaceLayout() {
 
   return (
     <WorkspaceContext.Provider value={workspace}>
+      <LiveUpdates workspaceId={workspace.id} />
       <div className="flex min-h-svh flex-col">
         <TopBar actions={<UserMenu />} />
         <div className="flex flex-1">

@@ -19,6 +19,7 @@ import type { Issue, IssueList, MoveTarget, NewIssue } from './schemas'
 export const issueKeys = {
   all: (workspaceId: string) => ['workspaces', workspaceId, 'issues'] as const,
   list: (workspaceId: string, filters: IssueFilters) => [...issueKeys.all(workspaceId), 'list', filters] as const,
+  details: (workspaceId: string) => [...issueKeys.all(workspaceId), 'detail'] as const,
   lists: (workspaceId: string) => [...issueKeys.all(workspaceId), 'list'] as const,
   detail: (workspaceId: string, number: number | null) => [...issueKeys.all(workspaceId), 'detail', number] as const,
   comments: (workspaceId: string, issueId: string) => [...issueKeys.all(workspaceId), 'comments', issueId] as const,

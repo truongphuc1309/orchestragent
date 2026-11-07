@@ -19,7 +19,11 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 public class SseHub {
 
     static final long DEFAULT_TIMEOUT_MILLIS = 30 * 60 * 1000L;
-    static final String HEARTBEAT_COMMENT = "heartbeat";
+    /**
+     * Name of the keep-alive event. It is a real event, not an SSE comment, because browsers hide comments from
+     * JavaScript: clients use it to notice a connection that died without telling them.
+     */
+    public static final String HEARTBEAT_EVENT = "heartbeat";
 
     private static final Logger log = LoggerFactory.getLogger(SseHub.class);
 
@@ -58,12 +62,12 @@ public class SseHub {
         }
     }
 
-    /** Keeps idle connections open through proxies. Runs every 25 seconds. */
+    /** Keeps idle connections open through proxies and lets clients detect dead ones. Runs every 25 seconds. */
     @Scheduled(fixedRate = 25_000)
     public void sendHeartbeats() {
         emittersByWorkspace.forEach((workspaceId, emitters) -> {
             for (SseEmitter emitter : emitters) {
-                send(workspaceId, emitter, SseEmitter.event().comment(HEARTBEAT_COMMENT));
+                send(workspaceId, emitter, SseEmitter.event().name(HEARTBEAT_EVENT).data("{}"));
             }
         });
     }

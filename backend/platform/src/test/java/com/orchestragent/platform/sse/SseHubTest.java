@@ -90,10 +90,20 @@ class SseHubTest {
         assertThat(hub.subscriberCount(workspace)).isEqualTo(1);
     }
 
+    @Test
+    void theHeartbeatIsARealNamedEventSoThatBrowsersPassItToJavaScript() {
+        hub.register(workspace);
+
+        hub.sendHeartbeats();
+
+        assertThat(created.get(0).text.toString()).contains("event:heartbeat");
+    }
+
     /** Counts sends instead of writing to a real HTTP response. */
     private static class RecordingEmitter extends SseEmitter {
 
         int sent;
+        final StringBuilder text = new StringBuilder();
         boolean failOnSend;
         private Runnable completion;
         private Runnable timeout;
@@ -108,6 +118,7 @@ class SseHubTest {
                 throw new IOException("client disconnected");
             }
             sent++;
+            builder.build().forEach(part -> text.append(part.getData()));
         }
 
         @Override

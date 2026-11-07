@@ -1,5 +1,7 @@
 import '@testing-library/jest-dom/vitest'
+import { vi } from 'vitest'
 import { useLastWorkspace } from '@/features/workspace/lastWorkspace'
+import { FakeEventSource } from './fakeEventSource'
 
 // jsdom lacks a few browser APIs that Radix UI and input-otp touch.
 class ResizeObserverStub {
@@ -30,4 +32,8 @@ document.elementFromPoint = () => null
 beforeEach(() => {
   localStorage.clear()
   useLastWorkspace.setState({ lastSlug: null })
+  // jsdom has no EventSource; the live-updates stream of a workspace talks to this one. Stubbed again for
+  // every test because tests call vi.unstubAllGlobals().
+  vi.stubGlobal('EventSource', FakeEventSource)
+  FakeEventSource.reset()
 })

@@ -4,7 +4,7 @@ People and AI agents working on the same issues. Assign an issue to an agent lik
 teammate: a local daemon picks up the task, runs Claude Code CLI on your machine, streams progress in
 real time, and moves the issue to review for a human to approve.
 
-> Status: step 5 of `PLAN.md` (issues, board and comments) is implemented on top of steps 1 to 4. Steps 2 to 5
+> Status: step 6 of `PLAN.md` (live updates over SSE) is implemented on top of steps 1 to 5. Steps 2 to 6
 > are awaiting human review. The agent and inbox contexts are still empty.
 
 ## Requirements
@@ -80,6 +80,19 @@ events `IssueCreated`, `IssueUpdated`, `IssueAssigneeChanged`, `IssueDeleted` an
 
 The web app has a six-column board (drag with mouse, touch or keyboard), a list view, filters that are remembered per
 workspace, a create dialog and an issue page with inline editing, a properties panel and a comment timeline.
+
+### Live updates (step 6)
+
+`GET /api/workspaces/{id}/events` is a Server-Sent Events stream, open to members only (anyone else gets `404`, like
+every workspace endpoint). The issue context's listener turns its integration events into `issue.created`,
+`issue.updated`, `issue.deleted` and `comment.created` (each carries only `issueId` and what changed), plus a
+`heartbeat` event every 25 seconds. The events carry no data on purpose: the web app marks the affected queries stale
+and fetches them again, so a repeated or reordered event cannot show something older than the server has. Delivery
+runs through `@ApplicationModuleListener` (after the commit, on its own thread); handled events are deleted from
+`event_publication` (`spring.modulith.events.completion-mode: delete`).
+
+The browser side (`shared/api/eventStream.ts`) reconnects with a growing delay when the browser gives up, treats 60
+seconds without any event or heartbeat as a dead connection, and fetches the whole workspace again after a break.
 
 ### Frontend (step 3)
 

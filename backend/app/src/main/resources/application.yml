@@ -24,6 +24,8 @@ spring:
   modulith:
     events:
       republish-outstanding-events-on-restart: true
+      # A handled event is not needed any more (the live updates it triggers are not an audit trail).
+      completion-mode: delete
 
 server:
   port: 8080
