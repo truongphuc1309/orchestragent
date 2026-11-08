@@ -11,7 +11,7 @@ import java.util.List;
  * is for (the trigger), and how to report. The AI tool gets the whole story in every run, because a run may start
  * without the earlier session (another folder, a new computer).
  *
- * <p>The issue heading is {@code # Issue #<number>: <title>} on a line of its own; the mock provider reads it.
+ * <p>The issue heading is {@code # Issue <key>: <title>} ({@code # Issue WEB-12: Add login}) on a line of its own; the mock provider reads it.
  */
 public final class PromptBuilder {
 
@@ -26,7 +26,7 @@ public final class PromptBuilder {
                 .append(orDefault(instructions, "(No standing instructions. Use your best judgement.)").strip())
                 .append('\n');
 
-        prompt.append("\n# Issue #").append(task.issue().number()).append(": ").append(oneLine(task.issue().title())).append("\n\n")
+        prompt.append("\n# Issue ").append(oneLine(task.issue().label())).append(": ").append(oneLine(task.issue().title())).append("\n\n")
                 .append(orDefault(task.issue().description(), "(No description.)").strip())
                 .append('\n');
 

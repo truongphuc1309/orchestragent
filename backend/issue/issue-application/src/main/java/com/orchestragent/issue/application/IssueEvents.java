@@ -6,9 +6,11 @@ import com.orchestragent.issue.contract.IssueAssigneeChanged;
 import com.orchestragent.issue.contract.IssueCreated;
 import com.orchestragent.issue.contract.IssueDeleted;
 import com.orchestragent.issue.contract.IssueUpdated;
+import com.orchestragent.issue.contract.ProjectChanged;
 import com.orchestragent.issue.domain.Actor;
 import com.orchestragent.issue.domain.Comment;
 import com.orchestragent.issue.domain.Issue;
+import com.orchestragent.issue.domain.Project;
 import com.orchestragent.shared.id.UuidV7;
 import java.time.Clock;
 import java.util.Set;
@@ -36,8 +38,9 @@ class IssueEvents {
                 UuidV7.next(),
                 clock.instant(),
                 issue.workspaceId(),
+                issue.projectId().value(),
                 issue.id().value(),
-                issue.number(),
+                issue.key().toString(),
                 contract(issue.creator()),
                 issue.creator().id()));
     }
@@ -76,7 +79,12 @@ class IssueEvents {
 
     void deleted(Issue issue) {
         publisher.publishEvent(new IssueDeleted(
-                UuidV7.next(), clock.instant(), issue.workspaceId(), issue.id().value(), issue.number()));
+                UuidV7.next(), clock.instant(), issue.workspaceId(), issue.id().value(), issue.key().toString()));
+    }
+
+    void projectChanged(Project project) {
+        publisher.publishEvent(
+                new ProjectChanged(UuidV7.next(), clock.instant(), project.workspaceId(), project.id().value()));
     }
 
     void commentAdded(Comment comment) {

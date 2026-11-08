@@ -4,14 +4,15 @@ export const notificationTypeSchema = z.enum(['issue_assigned', 'agent_completed
 export type NotificationType = z.infer<typeof notificationTypeSchema>
 
 /**
- * Something the signed-in person should know about an issue. It carries a copy of the issue number and title and
+ * Something the signed-in person should know about an issue. It carries a copy of the issue key and title and
  * of who did it, so it still reads right after they changed. {@code detail} is the failure reason of a failed run.
  */
 export const notificationSchema = z.object({
   id: z.uuid(),
   type: notificationTypeSchema,
   issueId: z.uuid(),
-  issueNumber: z.number().int(),
+  /** WEB-12; issue keys never change, so the copy stays true. */
+  issueKey: z.string(),
   issueTitle: z.string(),
   actorName: z.string(),
   detail: z.string().nullable(),

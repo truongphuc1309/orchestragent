@@ -173,6 +173,7 @@ class DaemonApiTest extends TaskWorkflowTestBase {
         assertThat(JsonPath.<String>read(response, "$.tasks[0].issue.title")).isEqualTo("Brief me");
         assertThat(JsonPath.<String>read(response, "$.tasks[0].issue.description")).isEqualTo("Details of Brief me");
         assertThat(JsonPath.<Integer>read(response, "$.tasks[0].issue.number")).isPositive();
+        assertThat(JsonPath.<String>read(response, "$.tasks[0].issue.key")).matches("WEB-[0-9]+");
         assertThat(JsonPath.<List<String>>read(response, "$.tasks[0].comments[*].body")).containsExactly("Context from Max");
         assertThat(JsonPath.<List<String>>read(response, "$.tasks[0].comments[*].authorType")).containsExactly("member");
         assertThat(JsonPath.<Object>read(response, "$.tasks[0].priorSessionId")).isNull();

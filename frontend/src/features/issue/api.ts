@@ -22,6 +22,7 @@ export const LIST_LIMIT = 500
 
 export function listIssues(workspaceId: string, filters: IssueFilters, signal?: AbortSignal): Promise<IssueList> {
   const params = new URLSearchParams()
+  filters.projects.forEach((id) => params.append('project', id))
   filters.statuses.forEach((status) => params.append('status', status))
   filters.priorities.forEach((priority) => params.append('priority', priority))
   filters.assignees.forEach((id) => params.append('assignee', id))
@@ -32,14 +33,16 @@ export function listIssues(workspaceId: string, filters: IssueFilters, signal?: 
   return apiRequest(`${base(workspaceId)}?${params.toString()}`, { schema: issueListSchema, signal })
 }
 
-export function getIssueByNumber(workspaceId: string, number: number, signal?: AbortSignal): Promise<Issue> {
-  return apiRequest(`${base(workspaceId)}/number/${number}`, { schema: issueSchema, signal })
+/** By the key people use, WEB-12. */
+export function getIssueByKey(workspaceId: string, key: string, signal?: AbortSignal): Promise<Issue> {
+  return apiRequest(`${base(workspaceId)}/key/${encodeURIComponent(key)}`, { schema: issueSchema, signal })
 }
 
 export function createIssue(workspaceId: string, issue: NewIssue): Promise<Issue> {
   return apiRequest(base(workspaceId), {
     method: 'POST',
     body: {
+      projectId: issue.projectId,
       title: issue.title,
       description: issue.description,
       status: issue.status,

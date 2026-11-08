@@ -74,7 +74,7 @@ export function DailyChart({ days, metric }: { days: Usage['byDay']; metric: Met
       )}
       <details className="text-sm">
         <summary className="cursor-pointer text-muted-foreground">Show as a table</summary>
-        <div className="mt-2 max-h-64 overflow-auto rounded-md border">
+        <div className="relative mt-2 max-h-64 overflow-auto rounded-md border">
           <table className="w-full text-left text-sm">
             <thead className="border-b bg-muted text-xs text-muted-foreground uppercase">
               <tr>

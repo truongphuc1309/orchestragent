@@ -16,7 +16,8 @@ public final class Issue {
 
     private final IssueId id;
     private final UUID workspaceId;
-    private final int number;
+    private final ProjectId projectId;
+    private final IssueKey key;
     private final Actor creator;
     private final Instant createdAt;
     private String title;
@@ -30,7 +31,8 @@ public final class Issue {
     public Issue(
             IssueId id,
             UUID workspaceId,
-            int number,
+            ProjectId projectId,
+            IssueKey key,
             String title,
             String description,
             Status status,
@@ -42,7 +44,8 @@ public final class Issue {
             Instant updatedAt) {
         this.id = Objects.requireNonNull(id, "id");
         this.workspaceId = Objects.requireNonNull(workspaceId, "workspaceId");
-        this.number = number;
+        this.projectId = Objects.requireNonNull(projectId, "projectId");
+        this.key = Objects.requireNonNull(key, "key");
         this.title = Objects.requireNonNull(title, "title");
         this.description = Objects.requireNonNull(description, "description");
         this.status = Objects.requireNonNull(status, "status");
@@ -54,8 +57,9 @@ public final class Issue {
         this.updatedAt = Objects.requireNonNull(updatedAt, "updatedAt");
     }
 
+    /** A new issue in {@code project}, which must be active, with the number the project handed out. */
     public static Issue create(
-            UUID workspaceId,
+            Project project,
             int number,
             String title,
             String description,
@@ -65,10 +69,12 @@ public final class Issue {
             Actor creator,
             double position,
             Instant now) {
+        project.requireActive();
         return new Issue(
                 IssueId.generate(),
-                workspaceId,
-                number,
+                project.workspaceId(),
+                project.id(),
+                new IssueKey(project.key(), number),
                 validTitle(title),
                 validDescription(description),
                 status,
@@ -175,8 +181,17 @@ public final class Issue {
         return workspaceId;
     }
 
+    public ProjectId projectId() {
+        return projectId;
+    }
+
+    /** {@code WEB-12}: the project key and the number of the issue in its project. Never changes. */
+    public IssueKey key() {
+        return key;
+    }
+
     public int number() {
-        return number;
+        return key.number();
     }
 
     public String title() {

@@ -101,13 +101,13 @@ class UsageServiceTest {
 
         assertThat(report.topIssues()).satisfiesExactly(
                 first -> {
-                    assertThat(first.number()).isEqualTo(7);
+                    assertThat(first.key()).isEqualTo("WEB-7");
                     assertThat(first.title()).isEqualTo("Issue 7");
                     assertThat(first.totals().costUsd()).isEqualByComparingTo("1.20");
                 },
                 second -> {
                     assertThat(second.issueId()).isEqualTo(deleted);
-                    assertThat(second.number()).isNull();
+                    assertThat(second.key()).isNull();
                     assertThat(second.title()).isNull();
                 });
     }

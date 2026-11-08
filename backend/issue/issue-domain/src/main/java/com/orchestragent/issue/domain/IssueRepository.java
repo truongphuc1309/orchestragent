@@ -14,9 +14,9 @@ public interface IssueRepository {
 
     Optional<Issue> find(UUID workspaceId, IssueId id);
 
-    Optional<Issue> findByNumber(UUID workspaceId, int number);
+    Optional<Issue> findByNumber(UUID workspaceId, ProjectId projectId, int number);
 
-    /** Newest issue first (highest number), at most {@code limit} items. */
+    /** Newest issue first (latest created), at most {@code limit} items. */
     IssueList list(UUID workspaceId, IssueFilter filter, int limit);
 
     /** One board column from top to bottom. */

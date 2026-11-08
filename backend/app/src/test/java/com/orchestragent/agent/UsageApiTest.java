@@ -58,6 +58,7 @@ class UsageApiTest extends TaskWorkflowTestBase {
 
         assertThat(JsonPath.<List<String>>read(body, "$.topIssues[*].title")).containsExactlyInAnyOrder("First", "Second", "Third");
         assertThat(JsonPath.<String>read(body, "$.topIssues[2].title")).isEqualTo("Third");
+        assertThat(JsonPath.<List<String>>read(body, "$.topIssues[*].key")).allSatisfy(key -> assertThat(key).matches("WEB-[0-9]+"));
 
         String today = LocalDate.now(ZoneOffset.UTC).toString();
         assertThat(JsonPath.<List<String>>read(body, "$.byDay[*].day")).hasSize(7).last().isEqualTo(today);

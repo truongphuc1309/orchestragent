@@ -9,6 +9,7 @@ import com.orchestragent.issue.application.Fakes.FakeAgents;
 import com.orchestragent.issue.application.Fakes.FakeUsers;
 import com.orchestragent.issue.application.Fakes.InMemoryIssues;
 import com.orchestragent.issue.application.Fakes.InMemoryNumbers;
+import com.orchestragent.issue.application.Fakes.InMemoryProjects;
 import com.orchestragent.issue.application.IssueService.CreateIssue;
 import com.orchestragent.issue.application.IssueService.UpdateIssue;
 import com.orchestragent.issue.application.Views.IssuePageView;
@@ -23,6 +24,7 @@ import com.orchestragent.issue.domain.Issue;
 import com.orchestragent.issue.domain.IssueFilter;
 import com.orchestragent.issue.domain.Positions;
 import com.orchestragent.issue.domain.Priority;
+import com.orchestragent.issue.domain.Project;
 import com.orchestragent.issue.domain.Status;
 import com.orchestragent.shared.error.ConflictException;
 import com.orchestragent.shared.error.ForbiddenException;
@@ -38,13 +40,15 @@ import org.junit.jupiter.api.Test;
 class IssueServiceTest {
 
     private final InMemoryIssues issues = new InMemoryIssues();
+
+    private final InMemoryProjects projects = new InMemoryProjects();
     private final FakeAccess access = new FakeAccess();
     private final FakeUsers users = new FakeUsers();
     private final FakeAgents agents = new FakeAgents();
     private final List<Object> published = new ArrayList<>();
     private final IssueEvents events = new IssueEvents(published::add, Fakes.clock());
     private final IssueService service = new IssueService(
-            issues, new InMemoryNumbers(), access, agents, new ActorNames(users, agents), events, Fakes.clock());
+            issues, projects, new InMemoryNumbers(projects), access, agents, new ActorNames(users, agents), events, Fakes.clock());
 
     private final UserView owner = users.add("Olivia");
     private final UserView admin = users.add("Adam");
@@ -62,12 +66,16 @@ class IssueServiceTest {
         access.join(otherWorkspace, outsider.id(), WorkspaceRole.OWNER);
     }
 
-    private static CreateIssue issue(String title) {
-        return new CreateIssue(title, null, null, null, null);
+    private CreateIssue issue(String title) {
+        return issueIn(workspace, title);
     }
 
-    private static CreateIssue issue(String title, Status status) {
-        return new CreateIssue(title, null, status, null, null);
+    private CreateIssue issueIn(UUID workspaceId, String title) {
+        return new CreateIssue(projects.defaultIn(workspaceId), title, null, null, null, null);
+    }
+
+    private CreateIssue issue(String title, Status status) {
+        return new CreateIssue(projects.defaultIn(workspace), title, null, status, null, null);
     }
 
     private IssueView create(String title, Status status) {
@@ -87,7 +95,7 @@ class IssueServiceTest {
 
     @Test
     void createsAnIssueWithDefaultsAndTheCreatorFilledIn() {
-        IssueView created = service.create(member.id(), workspace, new CreateIssue("  Fix login  ", "Steps", null, null, null));
+        IssueView created = service.create(member.id(), workspace, new CreateIssue(projects.defaultIn(workspace), "  Fix login  ", "Steps", null, null, null));
 
         assertThat(created.number()).isEqualTo(1);
         assertThat(created.title()).isEqualTo("Fix login");
@@ -102,13 +110,50 @@ class IssueServiceTest {
     }
 
     @Test
-    void numbersGoUpPerWorkspace() {
+    void numbersGoUpPerProjectAndTheKeyFollowsTheProject() {
+        // Numbers used to count per workspace; since projects, every project counts on its own (step 13).
+        UUID api = projects.add(workspace, "API").id().value();
         access.join(otherWorkspace, member.id(), WorkspaceRole.MEMBER);
 
-        assertThat(create("a", null).number()).isEqualTo(1);
-        assertThat(create("b", null).number()).isEqualTo(2);
-        assertThat(service.create(member.id(), otherWorkspace, issue("c")).number()).isEqualTo(1);
-        assertThat(create("d", null).number()).isEqualTo(3);
+        assertThat(create("a", null).key()).isEqualTo("WEB-1");
+        assertThat(create("b", null).key()).isEqualTo("WEB-2");
+        IssueView inApi = service.create(member.id(), workspace, new CreateIssue(api, "c", null, null, null, null));
+        assertThat(service.create(member.id(), otherWorkspace, issueIn(otherWorkspace, "d")).key()).isEqualTo("WEB-1");
+        assertThat(create("e", null).key()).isEqualTo("WEB-3");
+
+        assertThat(inApi.key()).isEqualTo("API-1");
+        assertThat(inApi.number()).isEqualTo(1);
+        assertThat(inApi.projectId()).isEqualTo(api);
+    }
+
+    @Test
+    void anIssueNeedsAnActiveProjectOfTheWorkspace() {
+        Project old = projects.add(workspace, "OLD");
+        old.archive(Fakes.clock().instant());
+        UUID archived = old.id().value();
+        UUID foreign = projects.defaultIn(otherWorkspace);
+
+        assertThatThrownBy(() -> service.create(member.id(), workspace, new CreateIssue(null, "x", null, null, null, null)))
+                .isInstanceOf(ValidationException.class)
+                .extracting("code")
+                .isEqualTo("issue.project_required");
+        assertThatThrownBy(() -> service.create(member.id(), workspace, new CreateIssue(foreign, "x", null, null, null, null)))
+                .isInstanceOf(ValidationException.class)
+                .extracting("code")
+                .isEqualTo("issue.invalid_project");
+        assertThatThrownBy(() -> service.create(member.id(), workspace, new CreateIssue(archived, "x", null, null, null, null)))
+                .isInstanceOf(ConflictException.class)
+                .extracting("code")
+                .isEqualTo("project.archived");
+        assertThat(issues.stored).isEmpty();
+        assertThat(published).isEmpty();
+    }
+
+    @Test
+    void aRefusedIssueTakesNoNumber() {
+        assertThatThrownBy(() -> create("  ", null)).isInstanceOf(ValidationException.class);
+
+        assertThat(create("Fix", null).key()).isEqualTo("WEB-1");
     }
 
     @Test
@@ -130,7 +175,8 @@ class IssueServiceTest {
         assertThat(eventsOf(IssueCreated.class)).singleElement().satisfies(event -> {
             assertThat(event.workspaceId()).isEqualTo(workspace);
             assertThat(event.issueId()).isEqualTo(created.id());
-            assertThat(event.number()).isEqualTo(created.number());
+            assertThat(event.projectId()).isEqualTo(created.projectId());
+            assertThat(event.key()).isEqualTo(created.key());
             assertThat(event.creatorId()).isEqualTo(member.id());
             assertThat(event.eventId()).isNotNull();
         });
@@ -140,7 +186,7 @@ class IssueServiceTest {
     @Test
     void creatingWithAnAssigneeAlsoPublishesAssigneeChanged() {
         IssueView created = service.create(
-                member.id(), workspace, new CreateIssue("Fix", null, null, null, Actor.member(otherMember.id())));
+                member.id(), workspace, new CreateIssue(projects.defaultIn(workspace), "Fix", null, null, null, Actor.member(otherMember.id())));
 
         assertThat(created.assignee().name()).isEqualTo("Max");
         assertThat(eventsOf(IssueAssigneeChanged.class)).singleElement().satisfies(event -> {
@@ -174,7 +220,7 @@ class IssueServiceTest {
     @Test
     void rejectsAnAssigneeWhoIsNotInTheWorkspace() {
         assertThatThrownBy(() -> service.create(
-                        member.id(), workspace, new CreateIssue("Fix", null, null, null, Actor.member(outsider.id()))))
+                        member.id(), workspace, new CreateIssue(projects.defaultIn(workspace), "Fix", null, null, null, Actor.member(outsider.id()))))
                 .isInstanceOf(ValidationException.class)
                 .extracting("code")
                 .isEqualTo("issue.invalid_assignee");
@@ -184,7 +230,7 @@ class IssueServiceTest {
     @Test
     void rejectsAnAgentThatDoesNotExist() {
         assertThatThrownBy(() -> service.create(
-                        member.id(), workspace, new CreateIssue("Fix", null, null, null, Actor.agent(UUID.randomUUID()))))
+                        member.id(), workspace, new CreateIssue(projects.defaultIn(workspace), "Fix", null, null, null, Actor.agent(UUID.randomUUID()))))
                 .isInstanceOf(ValidationException.class);
     }
 
@@ -193,7 +239,7 @@ class IssueServiceTest {
         UUID agent = agents.add("Builder");
 
         IssueView created =
-                service.create(member.id(), workspace, new CreateIssue("Fix", null, null, null, Actor.agent(agent)));
+                service.create(member.id(), workspace, new CreateIssue(projects.defaultIn(workspace), "Fix", null, null, null, Actor.agent(agent)));
 
         assertThat(created.assignee().type()).isEqualTo(ActorType.AGENT);
         assertThat(created.assignee().name()).isEqualTo("Builder");
@@ -202,11 +248,28 @@ class IssueServiceTest {
     // ---- read --------------------------------------------------------------------------------------------
 
     @Test
-    void getsAnIssueByIdAndByNumber() {
+    void getsAnIssueByIdAndByKey() {
         IssueView created = create("Fix", null);
+        UUID api = projects.add(workspace, "API").id().value();
+        IssueView inApi = service.create(member.id(), workspace, new CreateIssue(api, "Other", null, null, null, null));
 
         assertThat(service.get(admin.id(), workspace, created.id()).title()).isEqualTo("Fix");
-        assertThat(service.getByNumber(admin.id(), workspace, created.number()).id()).isEqualTo(created.id());
+        assertThat(service.getByKey(admin.id(), workspace, "WEB-1").id()).isEqualTo(created.id());
+        assertThat(service.getByKey(admin.id(), workspace, "API-1").id()).isEqualTo(inApi.id());
+    }
+
+    @Test
+    void aKeyThatIsMalformedOrOfAnotherWorkspaceIsNotFound() {
+        create("Fix", null);
+        access.join(otherWorkspace, member.id(), WorkspaceRole.MEMBER);
+        UUID foreign = projects.add(otherWorkspace, "OTH").id().value();
+        service.create(member.id(), otherWorkspace, new CreateIssue(foreign, "Elsewhere", null, null, null, null));
+
+        for (String key : List.of("web-1", "WEB-2", "WEB", "WEB-0", "NOPE-1", "OTH-1", "")) {
+            assertThatThrownBy(() -> service.getByKey(member.id(), workspace, key))
+                    .as(key)
+                    .isInstanceOf(NotFoundException.class);
+        }
     }
 
     @Test
@@ -214,7 +277,7 @@ class IssueServiceTest {
         IssueView created = create("Fix", null);
 
         assertThatThrownBy(() -> service.get(outsider.id(), workspace, created.id())).isInstanceOf(NotFoundException.class);
-        assertThatThrownBy(() -> service.getByNumber(outsider.id(), workspace, 1)).isInstanceOf(NotFoundException.class);
+        assertThatThrownBy(() -> service.getByKey(outsider.id(), workspace, "WEB-1")).isInstanceOf(NotFoundException.class);
         assertThatThrownBy(() -> service.list(outsider.id(), workspace, IssueFilter.none(), 10))
                 .isInstanceOf(NotFoundException.class);
     }
@@ -222,7 +285,7 @@ class IssueServiceTest {
     @Test
     void anIssueOfAnotherWorkspaceIsNotFoundEvenForSomeoneInBothWorkspaces() {
         access.join(otherWorkspace, member.id(), WorkspaceRole.MEMBER);
-        IssueView inOther = service.create(member.id(), otherWorkspace, issue("Elsewhere"));
+        IssueView inOther = service.create(member.id(), otherWorkspace, issueIn(otherWorkspace, "Elsewhere"));
 
         assertThatThrownBy(() -> service.get(member.id(), workspace, inOther.id())).isInstanceOf(NotFoundException.class);
         assertThatThrownBy(() -> service.update(member.id(), workspace, inOther.id(), new UpdateIssue("Hijack", null, null, null)))
@@ -239,7 +302,7 @@ class IssueServiceTest {
     void anUnknownIssueIsNotFound() {
         assertThatThrownBy(() -> service.get(member.id(), workspace, UUID.randomUUID()))
                 .isInstanceOf(NotFoundException.class);
-        assertThatThrownBy(() -> service.getByNumber(member.id(), workspace, 99)).isInstanceOf(NotFoundException.class);
+        assertThatThrownBy(() -> service.getByKey(member.id(), workspace, "WEB-99")).isInstanceOf(NotFoundException.class);
     }
 
     @Test
@@ -247,7 +310,7 @@ class IssueServiceTest {
         access.join(otherWorkspace, member.id(), WorkspaceRole.MEMBER);
         create("one", null);
         create("two", null);
-        service.create(member.id(), otherWorkspace, issue("not here"));
+        service.create(member.id(), otherWorkspace, issueIn(otherWorkspace, "not here"));
 
         IssuePageView page = service.list(admin.id(), workspace, IssueFilter.none(), 100);
 
@@ -257,17 +320,31 @@ class IssueServiceTest {
 
     @Test
     void listFiltersByStatusPriorityAndAssignee() {
-        service.create(member.id(), workspace, new CreateIssue("a", null, Status.TODO, Priority.HIGH, Actor.member(admin.id())));
-        service.create(member.id(), workspace, new CreateIssue("b", null, Status.DONE, Priority.HIGH, null));
-        service.create(member.id(), workspace, new CreateIssue("c", null, Status.TODO, Priority.LOW, Actor.member(member.id())));
-        service.create(member.id(), workspace, new CreateIssue("d", null, Status.TODO, Priority.HIGH, null));
+        service.create(member.id(), workspace, new CreateIssue(projects.defaultIn(workspace), "a", null, Status.TODO, Priority.HIGH, Actor.member(admin.id())));
+        service.create(member.id(), workspace, new CreateIssue(projects.defaultIn(workspace), "b", null, Status.DONE, Priority.HIGH, null));
+        service.create(member.id(), workspace, new CreateIssue(projects.defaultIn(workspace), "c", null, Status.TODO, Priority.LOW, Actor.member(member.id())));
+        service.create(member.id(), workspace, new CreateIssue(projects.defaultIn(workspace), "d", null, Status.TODO, Priority.HIGH, null));
 
-        assertThat(titles(new IssueFilter(Set.of(Status.TODO), Set.of(), Set.of(), false))).containsExactly("d", "c", "a");
-        assertThat(titles(new IssueFilter(Set.of(), Set.of(Priority.HIGH), Set.of(), false))).containsExactly("d", "b", "a");
-        assertThat(titles(new IssueFilter(Set.of(), Set.of(), Set.of(admin.id()), false))).containsExactly("a");
-        assertThat(titles(new IssueFilter(Set.of(), Set.of(), Set.of(), true))).containsExactly("d", "b");
-        assertThat(titles(new IssueFilter(Set.of(), Set.of(), Set.of(member.id()), true))).containsExactly("d", "c", "b");
-        assertThat(titles(new IssueFilter(Set.of(Status.TODO), Set.of(Priority.HIGH), Set.of(), true))).containsExactly("d");
+        assertThat(titles(new IssueFilter(Set.of(), Set.of(Status.TODO), Set.of(), Set.of(), false))).containsExactly("d", "c", "a");
+        assertThat(titles(new IssueFilter(Set.of(), Set.of(), Set.of(Priority.HIGH), Set.of(), false))).containsExactly("d", "b", "a");
+        assertThat(titles(new IssueFilter(Set.of(), Set.of(), Set.of(), Set.of(admin.id()), false))).containsExactly("a");
+        assertThat(titles(new IssueFilter(Set.of(), Set.of(), Set.of(), Set.of(), true))).containsExactly("d", "b");
+        assertThat(titles(new IssueFilter(Set.of(), Set.of(), Set.of(), Set.of(member.id()), true))).containsExactly("d", "c", "b");
+        assertThat(titles(new IssueFilter(Set.of(), Set.of(Status.TODO), Set.of(Priority.HIGH), Set.of(), true))).containsExactly("d");
+    }
+
+    @Test
+    void listFiltersByProject() {
+        UUID web = projects.defaultIn(workspace);
+        UUID api = projects.add(workspace, "API").id().value();
+        UUID docs = projects.add(workspace, "DOC").id().value();
+        service.create(member.id(), workspace, new CreateIssue(web, "w", null, null, null, null));
+        service.create(member.id(), workspace, new CreateIssue(api, "a", null, null, null, null));
+        service.create(member.id(), workspace, new CreateIssue(docs, "d", null, null, null, null));
+
+        assertThat(titles(IssueFilter.none())).containsExactly("d", "a", "w");
+        assertThat(titles(new IssueFilter(Set.of(api), Set.of(), Set.of(), Set.of(), false))).containsExactly("a");
+        assertThat(titles(new IssueFilter(Set.of(web, docs), Set.of(), Set.of(), Set.of(), false))).containsExactly("d", "w");
     }
 
     private List<String> titles(IssueFilter filter) {
@@ -572,7 +649,7 @@ class IssueServiceTest {
     @Test
     void aNeighbourFromAnotherWorkspaceIsRefused() {
         access.join(otherWorkspace, member.id(), WorkspaceRole.MEMBER);
-        IssueView foreign = service.create(member.id(), otherWorkspace, issue("foreign", Status.TODO));
+        IssueView foreign = service.create(member.id(), otherWorkspace, new CreateIssue(projects.defaultIn(otherWorkspace), "foreign", null, Status.TODO, null, null));
         IssueView moving = create("moving", Status.TODO);
 
         assertThatThrownBy(() -> service.move(member.id(), workspace, moving.id(), Status.TODO, foreign.id(), null))
@@ -600,7 +677,7 @@ class IssueServiceTest {
         assertThat(issues.stored).isEmpty();
         assertThat(eventsOf(IssueDeleted.class)).singleElement().satisfies(event -> {
             assertThat(event.issueId()).isEqualTo(created.id());
-            assertThat(event.number()).isEqualTo(created.number());
+            assertThat(event.key()).isEqualTo(created.key());
         });
     }
 

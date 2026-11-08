@@ -5,6 +5,7 @@ import com.orchestragent.issue.contract.IssueAssigneeChanged;
 import com.orchestragent.issue.contract.IssueCreated;
 import com.orchestragent.issue.contract.IssueDeleted;
 import com.orchestragent.issue.contract.IssueUpdated;
+import com.orchestragent.issue.contract.ProjectChanged;
 import com.orchestragent.platform.sse.SseHub;
 import java.util.Set;
 import java.util.UUID;
@@ -23,8 +24,12 @@ class IssueSseListener {
     static final String ISSUE_UPDATED = "issue.updated";
     static final String ISSUE_DELETED = "issue.deleted";
     static final String COMMENT_CREATED = "comment.created";
+    static final String PROJECT_UPDATED = "project.updated";
 
-    record IssueRef(UUID issueId, int number) {
+    record IssueRef(UUID issueId, String key) {
+    }
+
+    record ProjectRef(UUID projectId) {
     }
 
     record IssueChange(UUID issueId, Set<String> changedFields) {
@@ -41,7 +46,7 @@ class IssueSseListener {
 
     @ApplicationModuleListener
     void on(IssueCreated event) {
-        hub.publish(event.workspaceId(), ISSUE_CREATED, new IssueRef(event.issueId(), event.number()));
+        hub.publish(event.workspaceId(), ISSUE_CREATED, new IssueRef(event.issueId(), event.key()));
     }
 
     @ApplicationModuleListener
@@ -57,7 +62,13 @@ class IssueSseListener {
 
     @ApplicationModuleListener
     void on(IssueDeleted event) {
-        hub.publish(event.workspaceId(), ISSUE_DELETED, new IssueRef(event.issueId(), event.number()));
+        hub.publish(event.workspaceId(), ISSUE_DELETED, new IssueRef(event.issueId(), event.key()));
+    }
+
+    /** Created, edited, archived or restored: the client fetches the projects again either way. */
+    @ApplicationModuleListener
+    void on(ProjectChanged event) {
+        hub.publish(event.workspaceId(), PROJECT_UPDATED, new ProjectRef(event.projectId()));
     }
 
     @ApplicationModuleListener

@@ -130,7 +130,8 @@ final class InboxFakes {
         final Map<UUID, IssueDetails> byId = new HashMap<>();
 
         IssueDetails add(UUID workspaceId, int number, ActorType creatorType, UUID creatorId) {
-            IssueDetails issue = new IssueDetails(UUID.randomUUID(), workspaceId, number, "Issue " + number, "", "todo",
+            IssueDetails issue = new IssueDetails(UUID.randomUUID(), workspaceId, UUID.randomUUID(), "WEB-" + number, number,
+                    "Issue " + number, "", "todo",
                     null, null, creatorType, creatorId);
             byId.put(issue.id(), issue);
             return issue;

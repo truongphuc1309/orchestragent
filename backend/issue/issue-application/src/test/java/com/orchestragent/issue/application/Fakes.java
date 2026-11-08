@@ -11,6 +11,10 @@ import com.orchestragent.issue.domain.IssueId;
 import com.orchestragent.issue.domain.IssueList;
 import com.orchestragent.issue.domain.IssueNumbers;
 import com.orchestragent.issue.domain.IssueRepository;
+import com.orchestragent.issue.domain.Project;
+import com.orchestragent.issue.domain.ProjectId;
+import com.orchestragent.issue.domain.ProjectKey;
+import com.orchestragent.issue.domain.ProjectRepository;
 import com.orchestragent.issue.domain.Status;
 import com.orchestragent.shared.error.ForbiddenException;
 import com.orchestragent.shared.error.NotFoundException;
@@ -28,6 +32,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalDouble;
+import java.util.OptionalInt;
 import java.util.UUID;
 
 /** In-memory implementations of the ports, so use cases are tested without Spring or a database. */
@@ -60,9 +65,11 @@ final class Fakes {
         }
 
         @Override
-        public Optional<Issue> findByNumber(UUID workspaceId, int number) {
+        public Optional<Issue> findByNumber(UUID workspaceId, ProjectId projectId, int number) {
             return stored.values().stream()
-                    .filter(issue -> issue.workspaceId().equals(workspaceId) && issue.number() == number)
+                    .filter(issue -> issue.workspaceId().equals(workspaceId)
+                            && issue.projectId().equals(projectId)
+                            && issue.number() == number)
                     .findFirst();
         }
 
@@ -70,10 +77,11 @@ final class Fakes {
         public IssueList list(UUID workspaceId, IssueFilter filter, int limit) {
             List<Issue> matching = stored.values().stream()
                     .filter(issue -> issue.workspaceId().equals(workspaceId))
+                    .filter(issue -> filter.projectIds().isEmpty() || filter.projectIds().contains(issue.projectId().value()))
                     .filter(issue -> filter.statuses().isEmpty() || filter.statuses().contains(issue.status()))
                     .filter(issue -> filter.priorities().isEmpty() || filter.priorities().contains(issue.priority()))
                     .filter(issue -> !filter.filtersAssignee() || matchesAssignee(issue, filter))
-                    .sorted(Comparator.comparingInt(Issue::number).reversed())
+                    .sorted(Comparator.comparing(Issue::createdAt).thenComparing(issue -> issue.id().value()).reversed())
                     .toList();
             return new IssueList(matching.stream().limit(limit).toList(), matching.size());
         }
@@ -88,7 +96,7 @@ final class Fakes {
         public List<Issue> findByStatus(UUID workspaceId, Status status) {
             return stored.values().stream()
                     .filter(issue -> issue.workspaceId().equals(workspaceId) && issue.status() == status)
-                    .sorted(Comparator.comparingDouble(Issue::position).thenComparingInt(Issue::number))
+                    .sorted(Comparator.comparingDouble(Issue::position).thenComparing(Issue::createdAt))
                     .toList();
         }
 
@@ -121,13 +129,69 @@ final class Fakes {
         }
     }
 
-    static final class InMemoryNumbers implements IssueNumbers {
+    static final class InMemoryProjects implements ProjectRepository {
 
-        private final Map<UUID, Integer> last = new HashMap<>();
+        final Map<ProjectId, Project> stored = new LinkedHashMap<>();
+        private final Map<UUID, UUID> defaults = new HashMap<>();
+
+        /** The ID of an active project of the workspace (key {@code WEB}), created on first use. */
+        UUID defaultIn(UUID workspaceId) {
+            return defaults.computeIfAbsent(workspaceId, ws -> add(ws, "WEB").id().value());
+        }
+
+        Project add(UUID workspaceId, String key) {
+            Project project = Project.create(
+                    workspaceId, new ProjectKey(key), key + " project", "", UUID.randomUUID(), clock().instant());
+            save(project);
+            return project;
+        }
 
         @Override
-        public int next(UUID workspaceId) {
-            return last.merge(workspaceId, 1, Integer::sum);
+        public void save(Project project) {
+            stored.put(project.id(), project);
+        }
+
+        @Override
+        public Optional<Project> find(UUID workspaceId, ProjectId id) {
+            return Optional.ofNullable(stored.get(id)).filter(project -> project.workspaceId().equals(workspaceId));
+        }
+
+        @Override
+        public Optional<Project> findByKey(UUID workspaceId, ProjectKey key) {
+            return stored.values().stream()
+                    .filter(project -> project.workspaceId().equals(workspaceId) && project.key().equals(key))
+                    .findFirst();
+        }
+
+        @Override
+        public boolean keyExists(UUID workspaceId, ProjectKey key) {
+            return findByKey(workspaceId, key).isPresent();
+        }
+
+        @Override
+        public List<Project> list(UUID workspaceId, boolean includeArchived) {
+            return stored.values().stream()
+                    .filter(project -> project.workspaceId().equals(workspaceId))
+                    .filter(project -> includeArchived || !project.isArchived())
+                    .sorted(Comparator.comparing(project -> project.key().value()))
+                    .toList();
+        }
+    }
+
+    /** Counts per project, and like the real counter hands out nothing for an archived or foreign project. */
+    static final class InMemoryNumbers implements IssueNumbers {
+
+        private final InMemoryProjects projects;
+        private final Map<ProjectId, Integer> last = new HashMap<>();
+
+        InMemoryNumbers(InMemoryProjects projects) {
+            this.projects = projects;
+        }
+
+        @Override
+        public OptionalInt next(UUID workspaceId, ProjectId projectId) {
+            Optional<Project> project = projects.find(workspaceId, projectId).filter(found -> !found.isArchived());
+            return project.isEmpty() ? OptionalInt.empty() : OptionalInt.of(last.merge(projectId, 1, Integer::sum));
         }
     }
 

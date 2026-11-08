@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { issue, issueId } from '@/test/fixtures'
-import { applyMove, column, moveTarget, positionBetween } from './board'
+import { applyMove, boardColumns, column, dropInto, moveAcross, moveTarget, positionBetween, targetOf } from './board'
 import type { Issue, Status } from './schemas'
 
 function card(n: number, status: Status, position: number): Issue {
@@ -21,8 +21,11 @@ describe('column', () => {
     expect(column(ALL, 'done')).toEqual([])
   })
 
-  it('breaks ties by number', () => {
-    expect(column([card(9, 'todo', 5), card(7, 'todo', 5)], 'todo').map((i) => i.number)).toEqual([7, 9])
+  // Numbers count per project since step 13, so they cannot order issues of two projects: the older issue wins.
+  it('breaks ties by creation time', () => {
+    const older = { ...card(9, 'todo', 5), createdAt: '2026-01-01T10:00:00Z' }
+    const newer = { ...card(7, 'todo', 5), createdAt: '2026-01-02T10:00:00Z' }
+    expect(column([newer, older], 'todo').map((i) => i.number)).toEqual([9, 7])
   })
 })
 
@@ -82,6 +85,54 @@ describe('moveTarget', () => {
         }
       }
     }
+  })
+})
+
+describe('the order shown while a card is dragged', () => {
+  const START = boardColumns(ALL)
+
+  it('lists every column from top to bottom', () => {
+    expect(START.todo).toEqual([A.id, B.id, C.id])
+    expect(START.in_progress).toEqual([X.id, Y.id])
+    expect(START.done).toEqual([])
+  })
+
+  it('moves a card dragged over another column into it at once, before or after the card it is over', () => {
+    const before = moveAcross(START, A.id, 'in_progress', Y.id)
+    expect(before.in_progress).toEqual([X.id, A.id, Y.id])
+    expect(before.todo).toEqual([B.id, C.id])
+
+    expect(moveAcross(START, A.id, 'in_progress', Y.id, true).in_progress).toEqual([X.id, Y.id, A.id])
+    expect(moveAcross(START, A.id, 'done', null).done).toEqual([A.id])
+  })
+
+  it('leaves a drag inside one column to the sortable animation, and says so by returning the same object', () => {
+    expect(moveAcross(START, A.id, 'todo', C.id)).toBe(START)
+    expect(moveAcross(START, issueId(99), 'done', null)).toBe(START)
+  })
+
+  it('keeps the place the drag chose when the card is dropped on the background of its new column', () => {
+    const dragged = moveAcross(START, A.id, 'in_progress', Y.id)
+
+    const dropped = dropInto(dragged, A.id, 'in_progress', null, 'todo')
+
+    expect(dropped.in_progress).toEqual([X.id, A.id, Y.id])
+    expect(targetOf(START, dropped, A.id)).toEqual({ status: 'in_progress', aboveId: X.id, belowId: Y.id })
+  })
+
+  it('reorders inside the new column when the card is dropped on one of its cards', () => {
+    const dragged = moveAcross(START, A.id, 'in_progress', X.id)
+
+    expect(dropInto(dragged, A.id, 'in_progress', Y.id, 'todo').in_progress).toEqual([X.id, Y.id, A.id])
+    expect(dropInto(dragged, A.id, 'in_progress', A.id, 'todo')).toBe(dragged)
+  })
+
+  it('reports nothing to do when a card dragged away comes back to its old place', () => {
+    const away = moveAcross(START, B.id, 'in_progress', null)
+    const back = moveAcross(away, B.id, 'todo', C.id)
+
+    expect(back.todo).toEqual([A.id, B.id, C.id])
+    expect(targetOf(START, back, B.id)).toBeNull()
   })
 })
 

@@ -2,7 +2,7 @@ import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { routes } from '@/app/routes'
-import { ACME, ADA, agent, agentId, issue, issueId, MIA, member } from '@/test/fixtures'
+import { ACM_PROJECT, ACME, ADA, agent, agentId, issue, issueId, member, MIA, project, projectId } from '@/test/fixtures'
 import type { Agent } from '@/features/agent/schemas'
 import { fakeServer, json, problem } from '@/test/fakeServer'
 import { renderRoutes } from '@/test/render'
@@ -31,6 +31,8 @@ const AGENTS = `GET /api/workspaces/${ACME.id}/agents`
 /** No agents unless a test puts some here. */
 let AGENTS_LIST: Agent[] = []
 
+const ACTIVE_PROJECTS = `GET /api/workspaces/${ACME.id}/projects`
+
 function baseHandlers(items: Issue[] = ISSUES, total = items.length) {
   return {
     'GET /api/me': () => json(200, ADA),
@@ -38,6 +40,8 @@ function baseHandlers(items: Issue[] = ISSUES, total = items.length) {
     [`GET /api/workspaces/${ACME.id}/members`]: () => json(200, MEMBERS),
     [AGENTS]: () => json(200, AGENTS_LIST),
     [LIST]: () => json(200, { items, total }),
+    [`GET /api/workspaces/${ACME.id}/projects?includeArchived=true`]: () => json(200, [ACM_PROJECT]),
+    [ACTIVE_PROJECTS]: () => json(200, [ACM_PROJECT]),
   }
 }
 
@@ -60,7 +64,7 @@ function cardsIn(columnName: string): string[] {
 describe('issues page', () => {
   beforeEach(() => {
     document.cookie = 'XSRF-TOKEN=test-token; path=/'
-    useIssueViewStore.setState({ view: 'board', filtersByWorkspace: {} })
+    useIssueViewStore.setState({ view: 'board', filtersByWorkspace: {}, lastProjectByWorkspace: {} })
     AGENTS_LIST = []
   })
   afterEach(() => {
@@ -99,7 +103,7 @@ describe('issues page', () => {
 
       const link = await screen.findByRole('link', { name: 'Fix the login' })
       const card = cardOf('Fix the login')
-      expect(link).toHaveAttribute('href', '/w/acme/issues/2')
+      expect(link).toHaveAttribute('href', '/w/acme/issues/ACM-2')
       expect(card).toHaveTextContent('ACM-2')
       expect(within(card).getByText('Assigned to Mia')).toBeInTheDocument()
       expect(within(cardOf('Write the plan')).getByRole('img', { name: 'Priority: High' })).toBeInTheDocument()
@@ -145,7 +149,7 @@ describe('issues page', () => {
       expect(within(table).getByText('Mia')).toBeInTheDocument()
       expect(within(table).getAllByText('Unassigned')).toHaveLength(3)
       expect(useIssueViewStore.getState().view).toBe('list')
-      expect(within(table).getByRole('link', { name: 'Fix the login' })).toHaveAttribute('href', '/w/acme/issues/2')
+      expect(within(table).getByRole('link', { name: 'Fix the login' })).toHaveAttribute('href', '/w/acme/issues/ACM-2')
     })
 
     it('opens in the remembered view', async () => {
@@ -188,7 +192,13 @@ describe('issues page', () => {
     it('combines status, priority and assignee in one request', async () => {
       useIssueViewStore.setState({
         filtersByWorkspace: {
-          [ACME.id]: { statuses: ['todo', 'done'], priorities: ['high'], assignees: [MIA.userId], unassigned: true },
+          [ACME.id]: {
+            projects: [],
+            statuses: ['todo', 'done'],
+            priorities: ['high'],
+            assignees: [MIA.userId],
+            unassigned: true,
+          },
         },
       })
       const path = `GET ${ISSUES_PATH}?status=todo&status=done&priority=high&assignee=${MIA.userId}&unassigned=true&limit=500`
@@ -257,6 +267,99 @@ describe('issues page', () => {
     })
   })
 
+  describe('projects', () => {
+    const API = project({ id: projectId(2), key: 'API', name: 'Backend' })
+    const OLD = project({ id: projectId(3), key: 'OLD', name: 'Old site', archived: true })
+    const API_ISSUE = issue({ id: issueId(5), number: 1, title: 'Add an endpoint', projectId: API.id, key: 'API-1' })
+
+    it('filters by project, archived ones included, and remembers the choice', async () => {
+      const path = `GET ${ISSUES_PATH}?project=${API.id}&limit=500`
+      const server = fakeServer({
+        ...baseHandlers(),
+        [`GET /api/workspaces/${ACME.id}/projects?includeArchived=true`]: () => json(200, [API, ACM_PROJECT, OLD]),
+        [path]: () => json(200, { items: [API_ISSUE], total: 1 }),
+      })
+      renderRoutes(routes, ['/w/acme/issues'])
+      const user = userEvent.setup()
+      await screen.findByText('Write the plan')
+
+      await user.click(screen.getByRole('button', { name: 'Project' }))
+      expect(await screen.findByRole('menuitemcheckbox', { name: /Old site.*archived/ })).toBeInTheDocument()
+      await user.click(screen.getByRole('menuitemcheckbox', { name: /Backend/ }))
+      await user.keyboard('{Escape}')
+
+      expect(await screen.findByText('Add an endpoint')).toBeInTheDocument()
+      expect(server.calls(path)).toHaveLength(1)
+      expect(useIssueViewStore.getState().filtersByWorkspace[ACME.id]?.projects).toEqual([API.id])
+      expect(screen.getByRole('button', { name: 'Project: 1 selected' })).toBeInTheDocument()
+    })
+
+    it('shows the issues of every project together, with the project of each in the list', async () => {
+      useIssueViewStore.setState({ view: 'list' })
+      fakeServer({
+        ...baseHandlers([API_ISSUE, ...ISSUES]),
+        [`GET /api/workspaces/${ACME.id}/projects?includeArchived=true`]: () => json(200, [API, ACM_PROJECT]),
+      })
+      renderRoutes(routes, ['/w/acme/issues'])
+
+      const table = await screen.findByRole('table')
+      const endpoint = within(table).getByRole('link', { name: 'Add an endpoint' })
+      expect(endpoint).toHaveAttribute('href', '/w/acme/issues/API-1')
+      const row = endpoint.closest('tr')
+      expect(row).not.toBeNull()
+      expect(within(row ?? table).getByText('API-1')).toBeInTheDocument()
+      expect(within(row ?? table).getByText('Backend')).toBeInTheDocument()
+      const plan = within(table).getByRole('link', { name: 'Write the plan' }).closest('tr')
+      expect(within(plan ?? table).getByText('Acme app')).toBeInTheDocument()
+    })
+
+    it('asks for a project first when the workspace has none', async () => {
+      fakeServer({
+        ...baseHandlers([]),
+        [`GET /api/workspaces/${ACME.id}/projects?includeArchived=true`]: () => json(200, []),
+        [ACTIVE_PROJECTS]: () => json(200, []),
+      })
+      renderRoutes(routes, ['/w/acme/issues'])
+      const user = userEvent.setup()
+
+      const link = await screen.findByRole('link', { name: 'Create a project first' })
+      expect(link).toHaveAttribute('href', '/w/acme/projects')
+      expect(screen.queryByRole('region', { name: 'To do' })).not.toBeInTheDocument()
+
+      await user.click(screen.getByRole('button', { name: 'Create issue' }))
+      const dialog = await screen.findByRole('dialog', { name: 'Create issue' })
+      expect(await within(dialog).findByRole('link', { name: 'Create a project' })).toHaveAttribute('href', '/w/acme/projects')
+      expect(within(dialog).getByRole('button', { name: 'Create' })).toBeDisabled()
+    })
+
+    it('starts the create dialog in the project used last, and lets the person pick another', async () => {
+      useIssueViewStore.setState({ lastProjectByWorkspace: { [ACME.id]: API.id } })
+      const created = issue({ id: issueId(9), number: 10, title: 'Elsewhere' })
+      const server = fakeServer({
+        ...baseHandlers(),
+        [ACTIVE_PROJECTS]: () => json(200, [API, ACM_PROJECT]),
+        [`POST ${ISSUES_PATH}`]: () => json(201, created),
+      })
+      renderRoutes(routes, ['/w/acme/issues'])
+      const user = userEvent.setup()
+      await screen.findByText('Write the plan')
+
+      await user.click(screen.getByRole('button', { name: 'Create issue' }))
+      const dialog = await screen.findByRole('dialog', { name: 'Create issue' })
+      const picker = within(dialog).getByRole('combobox', { name: 'Project' })
+      await waitFor(() => expect(picker).toHaveTextContent('Backend'))
+      await user.click(picker)
+      await user.click(await screen.findByRole('option', { name: /Acme app/ }))
+      await user.type(within(dialog).getByLabelText('Title'), 'Elsewhere')
+      await user.click(within(dialog).getByRole('button', { name: 'Create' }))
+
+      await waitFor(() => expect(server.calls(`POST ${ISSUES_PATH}`)).toHaveLength(1))
+      expect(server.calls(`POST ${ISSUES_PATH}`)[0]?.body).toMatchObject({ projectId: ACM_PROJECT.id })
+      expect(await screen.findByText('ACM-10 was created')).toBeInTheDocument()
+      expect(useIssueViewStore.getState().lastProjectByWorkspace[ACME.id]).toBe(ACM_PROJECT.id)
+    })
+  })
+
   describe('creating an issue', () => {
     it('checks the title and creates the issue with the chosen details', async () => {
       const created = issue({
@@ -295,6 +398,7 @@ describe('issues page', () => {
 
       await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
       expect(server.calls(`POST ${ISSUES_PATH}`)[0]?.body).toEqual({
+        projectId: ACM_PROJECT.id,
         title: 'New work',
         description: 'Some details',
         status: 'todo',

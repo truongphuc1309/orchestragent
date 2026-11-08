@@ -5,7 +5,7 @@ import { RuntimeStatusLozenge } from './RuntimeStatusLozenge'
 /** The computers (and AI tools on them) that can run agents, with whether they are reachable right now. */
 export function RuntimesTable({ runtimes, myId }: { runtimes: Runtime[]; myId: string | undefined }) {
   return (
-    <div className="overflow-x-auto rounded-md border">
+    <div className="relative overflow-x-auto rounded-md border">
       <table className="w-full text-left text-sm">
         <thead className="border-b bg-muted text-xs text-muted-foreground uppercase">
           <tr>

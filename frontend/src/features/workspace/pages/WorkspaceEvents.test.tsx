@@ -1,12 +1,13 @@
-import { act, screen, waitFor } from '@testing-library/react'
+import { act, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { routes } from '@/app/routes'
-import { ACME, ADA, comment, GLOBEX, issue, issueId } from '@/test/fixtures'
+import { ACM_PROJECT, ACME, ADA, comment, GLOBEX, issue, issueId, project, projectId } from '@/test/fixtures'
 import { FakeEventSource } from '@/test/fakeEventSource'
 import { fakeServer, json, problem } from '@/test/fakeServer'
 import { renderRoutes } from '@/test/render'
 import { useIssueViewStore } from '@/features/issue/filters'
 import type { Comment } from '@/features/issue/schemas'
+import type { Project } from '@/features/project/schemas'
 
 const ISSUES = `/api/workspaces/${ACME.id}/issues`
 const STREAM = `/api/workspaces/${ACME.id}/events`
@@ -16,7 +17,8 @@ const SECOND = issue({ id: issueId(2), number: 2, title: 'Second issue' })
 /** The page of a workspace whose data changes between requests, like the real server's. */
 function liveServer() {
   const comments: Comment[] = []
-  const state = { issues: [FIRST], comments, detail: FIRST, detailGone: false }
+  const projects: Project[] = []
+  const state = { issues: [FIRST], comments, detail: FIRST, detailGone: false, projects }
   const server = fakeServer({
     'GET /api/me': () => json(200, ADA),
     'GET /api/workspaces': () => json(200, [ACME, GLOBEX]),
@@ -24,9 +26,11 @@ function liveServer() {
     [`GET /api/workspaces/${ACME.id}/agents`]: () => json(200, []),
     [`GET /api/workspaces/${ACME.id}/tasks?issueId=${FIRST.id}`]: () => json(200, []),
     [`GET ${ISSUES}?limit=500`]: () => json(200, { items: state.issues, total: state.issues.length }),
-    [`GET ${ISSUES}/number/1`]: () =>
+    [`GET ${ISSUES}/key/ACM-1`]: () =>
       state.detailGone ? problem(404, { code: 'issue.not_found' }) : json(200, state.detail),
     [`GET ${ISSUES}/${FIRST.id}/comments`]: () => json(200, state.comments),
+    [`GET /api/workspaces/${ACME.id}/projects?includeArchived=true`]: () => json(200, [ACM_PROJECT]),
+    [`GET /api/workspaces/${ACME.id}/projects`]: () => json(200, state.projects),
   })
   return { state, server }
 }
@@ -85,9 +89,22 @@ describe('live updates of a workspace', () => {
     stream().open()
 
     state.issues = [FIRST, SECOND]
-    act(() => stream().emit('issue.created', { issueId: SECOND.id, number: 2 }))
+    act(() => stream().emit('issue.created', { issueId: SECOND.id, key: 'ACM-2' }))
 
     expect(await screen.findByText('Second issue')).toBeInTheDocument()
+  })
+
+  it('shows a project created by someone else in the navigation without a reload', async () => {
+    const { state } = liveServer()
+    renderRoutes(routes, ['/w/acme/issues'])
+    await screen.findByText('First issue')
+    const nav = screen.getByRole('navigation', { name: 'Workspace' })
+    expect(within(nav).queryByRole('link', { name: 'Mobile app' })).toBeNull()
+
+    state.projects = [project({ id: projectId(5), key: 'MOB', name: 'Mobile app' })]
+    act(() => stream().emit('project.updated', { projectId: projectId(5) }))
+
+    expect(await within(nav).findByRole('link', { name: 'Mobile app' })).toHaveAttribute('href', '/w/acme/projects/MOB')
   })
 
   it('removes an issue deleted by someone else from the board', async () => {
@@ -97,14 +114,14 @@ describe('live updates of a workspace', () => {
     await screen.findByText('Second issue')
 
     state.issues = [FIRST]
-    act(() => stream().emit('issue.deleted', { issueId: SECOND.id, number: 2 }))
+    act(() => stream().emit('issue.deleted', { issueId: SECOND.id, key: 'ACM-2' }))
 
     await waitFor(() => expect(screen.queryByText('Second issue')).not.toBeInTheDocument())
   })
 
   it('updates an open issue page when someone edits the issue', async () => {
     const { state } = liveServer()
-    renderRoutes(routes, ['/w/acme/issues/1'])
+    renderRoutes(routes, ['/w/acme/issues/ACM-1'])
     await screen.findByRole('heading', { name: 'First issue' })
 
     state.detail = { ...FIRST, title: 'Renamed by a teammate' }
@@ -115,7 +132,7 @@ describe('live updates of a workspace', () => {
 
   it('tells the person looking at an issue that it was deleted', async () => {
     const { state } = liveServer()
-    renderRoutes(routes, ['/w/acme/issues/1'])
+    renderRoutes(routes, ['/w/acme/issues/ACM-1'])
     await screen.findByRole('heading', { name: 'First issue' })
 
     state.detailGone = true
@@ -126,7 +143,7 @@ describe('live updates of a workspace', () => {
 
   it('shows a new comment on the open issue', async () => {
     const { state } = liveServer()
-    renderRoutes(routes, ['/w/acme/issues/1'])
+    renderRoutes(routes, ['/w/acme/issues/ACM-1'])
     await screen.findByText('No comments yet.')
 
     const added = comment({ id: '0198f1c0-0000-7000-8000-0000000002b1', issueId: FIRST.id, body: 'From the other tab' })
@@ -138,7 +155,7 @@ describe('live updates of a workspace', () => {
 
   it('ignores a comment on an issue that is not open', async () => {
     const { server } = liveServer()
-    renderRoutes(routes, ['/w/acme/issues/1'])
+    renderRoutes(routes, ['/w/acme/issues/ACM-1'])
     await screen.findByText('No comments yet.')
     const before = server.calls(`GET ${ISSUES}/${FIRST.id}/comments`).length
 

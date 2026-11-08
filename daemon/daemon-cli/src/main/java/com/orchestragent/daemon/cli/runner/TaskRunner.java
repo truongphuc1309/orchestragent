@@ -91,8 +91,8 @@ public final class TaskRunner {
      */
     public void run(ClaimedTask task, CancellationToken token) {
         String id = shortId(task.taskId());
-        LOG.log(Level.INFO, "Task {0}: issue #{1} \"{2}\" for agent {3} ({4}, trigger {5})",
-                id, task.issue().number(), task.issue().title(), task.agent().name(), task.provider(), task.trigger());
+        LOG.log(Level.INFO, "Task {0}: issue {1} \"{2}\" for agent {3} ({4}, trigger {5})",
+                id, task.issue().label(), task.issue().title(), task.agent().name(), task.provider(), task.trigger());
         try {
             execute(task, token, id);
         } catch (DaemonApiException e) {

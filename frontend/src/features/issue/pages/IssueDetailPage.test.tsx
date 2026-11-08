@@ -2,7 +2,7 @@ import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { routes } from '@/app/routes'
-import { ACME, ADA, agent, agentId, comment, issue, issueId, MIA, member } from '@/test/fixtures'
+import { ACM_PROJECT, ACME, ADA, agent, agentId, comment, issue, issueId, member, MIA } from '@/test/fixtures'
 import { fakeServer, json, noContent, problem, type RecordedRequest } from '@/test/fakeServer'
 import { renderRoutes } from '@/test/render'
 import type { Actor, Issue } from '../schemas'
@@ -45,13 +45,14 @@ function handlers(overrides: Record<string, (request: RecordedRequest) => Respon
     [`GET /api/workspaces/${ACME.id}/members`]: () => json(200, MEMBERS),
     [AGENTS]: () => json(200, AGENT_LIST),
     [`GET /api/workspaces/${ACME.id}/tasks?issueId=${ISSUE.id}`]: () => json(200, []),
-    [`GET ${BASE}/number/7`]: () => json(200, ISSUE),
+    [`GET ${BASE}/key/ACM-7`]: () => json(200, ISSUE),
     [`GET ${BASE}/${ISSUE.id}/comments`]: () => json(200, COMMENTS),
+    [`GET /api/workspaces/${ACME.id}/projects?includeArchived=true`]: () => json(200, [ACM_PROJECT]),
     ...overrides,
   }
 }
 
-async function openIssue(path = '/w/acme/issues/7') {
+async function openIssue(path = '/w/acme/issues/ACM-7') {
   const view = renderRoutes(routes, [path])
   await screen.findByRole('heading', { name: 'Fix the login' })
   return view
@@ -99,20 +100,21 @@ describe('issue detail page', () => {
     })
 
     it.each([
-      ['an issue that does not exist', '/w/acme/issues/99'],
-      ['an issue number that is not a number', '/w/acme/issues/abc'],
+      ['an issue that does not exist', '/w/acme/issues/ACM-99'],
+      ['an issue key that is not well formed', '/w/acme/issues/acm-7'],
+      ['a bare number, as issue links were before projects', '/w/acme/issues/7'],
     ])('says so for %s', async (_name, path) => {
-      const server = fakeServer(handlers({ [`GET ${BASE}/number/99`]: () => problem(404, { code: 'issue.not_found' }) }))
+      const server = fakeServer(handlers({ [`GET ${BASE}/key/ACM-99`]: () => problem(404, { code: 'issue.not_found' }) }))
       renderRoutes(routes, [path])
 
       expect(await screen.findByRole('heading', { name: 'Issue not found' })).toBeInTheDocument()
-      expect(server.requests.filter((request) => request.path.includes('/number/abc'))).toEqual([])
+      expect(server.requests.filter((request) => request.path.includes('/key/') && !request.path.endsWith('/key/ACM-99'))).toEqual([])
     })
 
     it('offers a retry when loading fails for another reason', async () => {
       let healthy = false
-      fakeServer(handlers({ [`GET ${BASE}/number/7`]: () => (healthy ? json(200, ISSUE) : problem(500, {})) }))
-      renderRoutes(routes, ['/w/acme/issues/7'])
+      fakeServer(handlers({ [`GET ${BASE}/key/ACM-7`]: () => (healthy ? json(200, ISSUE) : problem(500, {})) }))
+      renderRoutes(routes, ['/w/acme/issues/ACM-7'])
       const user = userEvent.setup()
 
       expect(await screen.findByRole('alert')).toHaveTextContent('Could not load the issue')
@@ -294,7 +296,7 @@ describe('issue detail page', () => {
 
     it('shows an agent that is already assigned, even one that has since been archived', async () => {
       const archivedBot: Actor = { type: 'agent', id: agentId(7), name: 'Old bot' }
-      fakeServer(handlers({ [`GET ${BASE}/number/7`]: () => json(200, { ...ISSUE, assignee: archivedBot }) }))
+      fakeServer(handlers({ [`GET ${BASE}/key/ACM-7`]: () => json(200, { ...ISSUE, assignee: archivedBot }) }))
       await openIssue()
 
       // The archived agent is not among the active agents the picker offers, but its name is still shown.
@@ -427,14 +429,14 @@ describe('issue detail page', () => {
     })
 
     it('hides delete from a plain member who did not create the issue', async () => {
-      fakeServer(handlers({ [`GET ${BASE}/number/7`]: () => json(200, OTHERS_ISSUE) }, asMember))
+      fakeServer(handlers({ [`GET ${BASE}/key/ACM-7`]: () => json(200, OTHERS_ISSUE) }, asMember))
       await openIssue()
 
       expect(screen.queryByRole('button', { name: 'Delete issue' })).not.toBeInTheDocument()
     })
 
     it('offers delete to an admin on any issue', async () => {
-      fakeServer(handlers({ [`GET ${BASE}/number/7`]: () => json(200, OTHERS_ISSUE) }, asAdmin))
+      fakeServer(handlers({ [`GET ${BASE}/key/ACM-7`]: () => json(200, OTHERS_ISSUE) }, asAdmin))
       await openIssue()
 
       expect(screen.getByRole('button', { name: 'Delete issue' })).toBeInTheDocument()

@@ -46,7 +46,7 @@ class TaskRulesApiTest extends TaskWorkflowTestBase {
     void creatingAnIssueAlreadyAssignedToAnAgentQueuesATask() throws Exception {
         String issue = JsonPath.read(
                 mvc.perform(as(json(post(issuesBase),
-                                "{\"title\":\"Born assigned\",\"assignee\":{\"type\":\"agent\",\"id\":\"" + agentId + "\"}}"), mia))
+                                "{\"projectId\":\"" + projectIn(workspaceId, mia) + "\",\"title\":\"Born assigned\",\"assignee\":{\"type\":\"agent\",\"id\":\"" + agentId + "\"}}"), mia))
                         .andExpect(status().isCreated())
                         .andReturn().getResponse().getContentAsString(),
                 "$.id");

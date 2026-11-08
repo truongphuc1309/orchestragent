@@ -46,6 +46,7 @@ class IssueApiTest extends IntegrationTest {
     private String memberId;
     private String colleagueId;
     private String workspaceId;
+    private String projectId;
     private String base;
 
     @BeforeEach
@@ -68,6 +69,7 @@ class IssueApiTest extends IntegrationTest {
         join(member, memberEmail, "member");
         join(colleague, colleagueEmail, "member");
         base = "/api/workspaces/" + workspaceId + "/issues";
+        projectId = createProject(workspaceId, owner, "WEB");
     }
 
     // ---- helpers -----------------------------------------------------------------------------------------
@@ -98,8 +100,21 @@ class IssueApiTest extends IntegrationTest {
         return builder.cookie(cookie).with(xsrf());
     }
 
+    /** A POST that creates an issue in the test's WEB project (unless the body names a project itself). */
+    private MockHttpServletRequestBuilder issueJson(String body) {
+        return json(post(base), withProject(body, projectId));
+    }
+
+    private static String withProject(String body, String project) {
+        if (body.contains("\"projectId\"")) {
+            return body;
+        }
+        String rest = body.substring(1).strip();
+        return "{\"projectId\":\"" + project + "\"" + (rest.equals("}") ? "" : ",") + rest;
+    }
+
     private String create(Cookie by, String json) throws Exception {
-        return mvc.perform(as(json(post(base), json), by))
+        return mvc.perform(as(issueJson(json), by))
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();
     }
@@ -130,9 +145,11 @@ class IssueApiTest extends IntegrationTest {
 
     @Test
     void createsIssuesWithGrowingNumbersAndDefaults() throws Exception {
-        mvc.perform(as(json(post(base), "{\"title\":\"  First  \"}"), member))
+        mvc.perform(as(issueJson("{\"title\":\"  First  \"}"), member))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.number").value(1))
+                .andExpect(jsonPath("$.key").value("WEB-1"))
+                .andExpect(jsonPath("$.projectId").value(projectId))
                 .andExpect(jsonPath("$.title").value("First"))
                 .andExpect(jsonPath("$.description").value(""))
                 .andExpect(jsonPath("$.status").value("todo"))
@@ -140,19 +157,64 @@ class IssueApiTest extends IntegrationTest {
                 .andExpect(jsonPath("$.assignee").doesNotExist())
                 .andExpect(jsonPath("$.creator.type").value("member"))
                 .andExpect(jsonPath("$.creator.id").value(memberId));
-        mvc.perform(as(json(post(base), "{\"title\":\"Second\"}"), colleague))
+        mvc.perform(as(issueJson("{\"title\":\"Second\"}"), colleague))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.number").value(2));
+                .andExpect(jsonPath("$.number").value(2))
+                .andExpect(jsonPath("$.key").value("WEB-2"));
+    }
+
+    /** Numbers used to count per workspace; since step 13 every project counts on its own. */
+    @Test
+    void numbersStartAtOneInEveryProject() throws Exception {
+        create(member, "{\"title\":\"here\"}");
+        String api = createProject(workspaceId, member, "API");
+        String otherWorkspace = createWorkspace(member, "Other " + UUID.randomUUID().toString().substring(0, 8));
+        String otherProject = createProject(otherWorkspace, member, "WEB");
+
+        mvc.perform(as(json(post(base), withProject("{\"title\":\"api\"}", api)), member))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.key").value("API-1"));
+        mvc.perform(as(json(post("/api/workspaces/" + otherWorkspace + "/issues"),
+                        withProject("{\"title\":\"there\"}", otherProject)), member))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.key").value("WEB-1"));
+        mvc.perform(as(issueJson("{\"title\":\"again\"}"), member))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.key").value("WEB-2"));
     }
 
     @Test
-    void numbersStartAtOneInEveryWorkspace() throws Exception {
-        create(member, "{\"title\":\"here\"}");
+    void anIssueNeedsAnActiveProjectOfTheWorkspace() throws Exception {
         String otherWorkspace = createWorkspace(member, "Other " + UUID.randomUUID().toString().substring(0, 8));
+        String foreign = createProject(otherWorkspace, member, "OTH");
+        String archived = createProject(workspaceId, member, "OLD");
+        mvc.perform(post("/api/workspaces/" + workspaceId + "/projects/" + archived + "/archive").cookie(member).with(xsrf()))
+                .andExpect(status().isOk());
 
-        mvc.perform(as(json(post("/api/workspaces/" + otherWorkspace + "/issues"), "{\"title\":\"there\"}"), member))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.number").value(1));
+        mvc.perform(as(json(post(base), "{\"title\":\"x\"}"), member)).andExpect(status().isBadRequest());
+        mvc.perform(as(json(post(base), withProject("{\"title\":\"x\"}", UUID.randomUUID().toString())), member))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("issue.invalid_project"));
+        mvc.perform(as(json(post(base), withProject("{\"title\":\"x\"}", foreign)), member))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("issue.invalid_project"));
+        mvc.perform(as(json(post(base), withProject("{\"title\":\"x\"}", archived)), member))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("project.archived"));
+        assertThat(JsonPath.<Integer>read(listBody(""), "$.total")).isZero();
+    }
+
+    @Test
+    void archivingAProjectKeepsItsIssuesReadable() throws Exception {
+        String id = createIssue(member, "Old work", "todo");
+        mvc.perform(post("/api/workspaces/" + workspaceId + "/projects/" + projectId + "/archive").cookie(owner).with(xsrf()))
+                .andExpect(status().isOk());
+
+        mvc.perform(get(base + "/key/WEB-1").cookie(colleague))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(id));
+        assertThat(titles("")).containsExactly("Old work");
+        mvc.perform(as(issueJson("{\"title\":\"new\"}"), member)).andExpect(status().isConflict());
     }
 
     @Test
@@ -165,7 +227,7 @@ class IssueApiTest extends IntegrationTest {
             for (int i = 0; i < count; i++) {
                 String title = "parallel " + i;
                 jobs.add(() -> JsonPath.<Integer>read(
-                        mvc.perform(json(post(base), "{\"title\":\"" + title + "\"}").cookie(member).with(postProcessor))
+                        mvc.perform(issueJson("{\"title\":\"" + title + "\"}").cookie(member).with(postProcessor))
                                 .andExpect(status().isCreated())
                                 .andReturn().getResponse().getContentAsString(),
                         "$.number"));
@@ -193,7 +255,7 @@ class IssueApiTest extends IntegrationTest {
                 "{\"title\":\"ok\",\"assignee\":{\"type\":\"robot\",\"id\":\"" + memberId + "\"}}",
                 "{\"title\":\"ok\",\"assignee\":{\"type\":\"system\",\"id\":\"" + memberId + "\"}}",
                 "{\"title\":\"ok\",\"assignee\":{\"type\":\"member\"}}")) {
-            mvc.perform(as(json(post(base), body), member)).andExpect(status().isBadRequest());
+            mvc.perform(as(issueJson(body), member)).andExpect(status().isBadRequest());
         }
         assertThat(JsonPath.<Integer>read(listBody(""), "$.total")).isZero();
     }
@@ -201,18 +263,18 @@ class IssueApiTest extends IntegrationTest {
     @Test
     void assigneesMustBeMembersOfTheWorkspace() throws Exception {
         String outsiderId = userId(outsider);
-        mvc.perform(as(json(post(base),
+        mvc.perform(as(issueJson(
                         "{\"title\":\"x\",\"assignee\":{\"type\":\"member\",\"id\":\"" + outsiderId + "\"}}"), member))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("issue.invalid_assignee"));
-        mvc.perform(as(json(post(base),
+        mvc.perform(as(issueJson(
                         "{\"title\":\"x\",\"assignee\":{\"type\":\"agent\",\"id\":\"" + UUID.randomUUID() + "\"}}"), member))
                 .andExpect(status().isBadRequest());
     }
 
     @Test
     void createsWithAnAssigneeAndShowsTheirName() throws Exception {
-        mvc.perform(as(json(post(base),
+        mvc.perform(as(issueJson(
                         "{\"title\":\"x\",\"assignee\":{\"type\":\"member\",\"id\":\"" + colleagueId + "\"}}"), member))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.assignee.type").value("member"))
@@ -221,17 +283,33 @@ class IssueApiTest extends IntegrationTest {
     }
 
     @Test
-    void readsAnIssueByIdAndByNumber() throws Exception {
+    void readsAnIssueByIdAndByKey() throws Exception {
         String id = createIssue(member, "Find me", "todo");
 
         mvc.perform(get(base + "/" + id).cookie(colleague))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.title").value("Find me"));
-        mvc.perform(get(base + "/number/1").cookie(colleague))
+        mvc.perform(get(base + "/key/WEB-1").cookie(colleague))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id").value(id));
-        mvc.perform(get(base + "/number/99").cookie(colleague)).andExpect(status().isNotFound());
+                .andExpect(jsonPath("$.id").value(id))
+                .andExpect(jsonPath("$.key").value("WEB-1"));
+        for (String key : List.of("WEB-99", "web-1", "API-1", "WEB", "1")) {
+            mvc.perform(get(base + "/key/" + key).cookie(colleague)).andExpect(status().isNotFound());
+        }
         mvc.perform(get(base + "/" + UUID.randomUUID()).cookie(colleague)).andExpect(status().isNotFound());
+    }
+
+    @Test
+    void theSameNumberInTwoProjectsIsTwoIssues() throws Exception {
+        String web = createIssue(member, "Web one", "todo");
+        String api = createProject(workspaceId, member, "API");
+        String apiIssue = JsonPath.read(create(member, withProject("{\"title\":\"Api one\"}", api)), "$.id");
+
+        mvc.perform(get(base + "/key/API-1").cookie(colleague))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(apiIssue))
+                .andExpect(jsonPath("$.title").value("Api one"));
+        mvc.perform(get(base + "/key/WEB-1").cookie(colleague)).andExpect(jsonPath("$.id").value(web));
     }
 
     @Test
@@ -242,6 +320,8 @@ class IssueApiTest extends IntegrationTest {
                 .anySatisfy(event -> {
                     assertThat(event.issueId()).hasToString(id);
                     assertThat(event.workspaceId()).hasToString(workspaceId);
+                    assertThat(event.projectId()).hasToString(projectId);
+                    assertThat(event.key()).isEqualTo("WEB-1");
                 });
     }
 
@@ -272,6 +352,23 @@ class IssueApiTest extends IntegrationTest {
         assertThat(titles("?unassigned=true")).containsExactly("c", "b");
         assertThat(titles("?assignee=" + colleagueId + "&unassigned=true")).containsExactly("c", "b", "a");
         assertThat(titles("?status=todo&priority=high")).containsExactly("a");
+    }
+
+    @Test
+    void listsIssuesOfEveryProjectAndFiltersByProject() throws Exception {
+        String api = createProject(workspaceId, member, "API");
+        String docs = createProject(workspaceId, member, "DOC");
+        create(member, "{\"title\":\"web\"}");
+        mvc.perform(as(json(post(base), withProject("{\"title\":\"api\"}", api)), member)).andExpect(status().isCreated());
+        mvc.perform(as(json(post(base), withProject("{\"title\":\"docs\"}", docs)), member)).andExpect(status().isCreated());
+
+        String all = listBody("");
+        assertThat(JsonPath.<List<String>>read(all, "$.items[*].title")).containsExactly("docs", "api", "web");
+        assertThat(JsonPath.<List<String>>read(all, "$.items[*].key")).containsExactly("DOC-1", "API-1", "WEB-1");
+        assertThat(titles("?project=" + api)).containsExactly("api");
+        assertThat(titles("?project=" + api + "," + projectId)).containsExactly("api", "web");
+        assertThat(titles("?project=" + UUID.randomUUID())).isEmpty();
+        mvc.perform(get(base + "?project=not-a-uuid").cookie(member)).andExpect(status().isBadRequest());
     }
 
     private List<String> titles(String query) throws Exception {
@@ -523,12 +620,12 @@ class IssueApiTest extends IntegrationTest {
     @Test
     void requiresALogin() throws Exception {
         mvc.perform(get(base)).andExpect(status().isUnauthorized());
-        mvc.perform(json(post(base), "{\"title\":\"x\"}").with(xsrf())).andExpect(status().isUnauthorized());
+        mvc.perform(issueJson("{\"title\":\"x\"}").with(xsrf())).andExpect(status().isUnauthorized());
     }
 
     @Test
     void writesWithoutACsrfTokenAreRefused() throws Exception {
-        mvc.perform(json(post(base), "{\"title\":\"x\"}").cookie(member)).andExpect(status().isForbidden());
+        mvc.perform(issueJson("{\"title\":\"x\"}").cookie(member)).andExpect(status().isForbidden());
         assertThat(JsonPath.<Integer>read(listBody(""), "$.total")).isZero();
     }
 
@@ -541,9 +638,9 @@ class IssueApiTest extends IntegrationTest {
         String myId = userId(outsider);
 
         mvc.perform(get(base).cookie(outsider)).andExpect(status().isNotFound());
-        mvc.perform(as(json(post(base), "{\"title\":\"x\"}"), outsider)).andExpect(status().isNotFound());
+        mvc.perform(as(issueJson("{\"title\":\"x\"}"), outsider)).andExpect(status().isNotFound());
         mvc.perform(get(base + "/" + id).cookie(outsider)).andExpect(status().isNotFound());
-        mvc.perform(get(base + "/number/1").cookie(outsider)).andExpect(status().isNotFound());
+        mvc.perform(get(base + "/key/WEB-1").cookie(outsider)).andExpect(status().isNotFound());
         mvc.perform(as(json(patch(base + "/" + id), "{\"title\":\"hijacked\"}"), outsider)).andExpect(status().isNotFound());
         mvc.perform(as(json(put(base + "/" + id + "/assignee"),
                         "{\"assignee\":{\"type\":\"member\",\"id\":\"" + myId + "\"}}"), outsider))

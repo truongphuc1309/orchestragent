@@ -16,9 +16,9 @@ export const usageSchema = z.object({
   lastDay: z.string(),
   totals: totalsSchema,
   byAgent: z.array(z.object({ agentId: z.uuid(), agentName: z.string(), archived: z.boolean(), totals: totalsSchema })),
-  /** The most expensive issues. {@code number} and {@code title} are null for an issue deleted since. */
+  /** The most expensive issues. {@code key} (WEB-12) and {@code title} are null for an issue deleted since. */
   topIssues: z.array(
-    z.object({ issueId: z.uuid(), number: z.number().int().nullable(), title: z.string().nullable(), totals: totalsSchema }),
+    z.object({ issueId: z.uuid(), key: z.string().nullable(), title: z.string().nullable(), totals: totalsSchema }),
   ),
   /** Every day of the period (UTC), oldest first, with zeros on quiet days. */
   byDay: z.array(z.object({ day: z.string(), totals: totalsSchema })),

@@ -21,7 +21,7 @@ public final class Notification {
     private final UUID recipientId;
     private final NotificationType type;
     private final UUID issueId;
-    private final int issueNumber;
+    private final String issueKey;
     private final String issueTitle;
     private final String actorName;
     private final String detail;
@@ -35,7 +35,7 @@ public final class Notification {
             UUID recipientId,
             NotificationType type,
             UUID issueId,
-            int issueNumber,
+            String issueKey,
             String issueTitle,
             String actorName,
             String detail,
@@ -47,7 +47,7 @@ public final class Notification {
         this.recipientId = Objects.requireNonNull(recipientId, "recipientId");
         this.type = Objects.requireNonNull(type, "type");
         this.issueId = Objects.requireNonNull(issueId, "issueId");
-        this.issueNumber = issueNumber;
+        this.issueKey = Objects.requireNonNull(issueKey, "issueKey");
         this.issueTitle = cut(Objects.requireNonNull(issueTitle, "issueTitle"), MAX_TITLE_LENGTH);
         this.actorName = cut(Objects.requireNonNull(actorName, "actorName"), MAX_NAME_LENGTH);
         this.detail = detail == null || detail.isBlank() ? null : cut(detail.strip(), MAX_DETAIL_LENGTH);
@@ -63,13 +63,13 @@ public final class Notification {
             UUID recipientId,
             NotificationType type,
             UUID issueId,
-            int issueNumber,
+            String issueKey,
             String issueTitle,
             String actorName,
             String detail,
             UUID sourceEventId,
             Instant now) {
-        return new Notification(id, workspaceId, recipientId, type, issueId, issueNumber, issueTitle, actorName, detail,
+        return new Notification(id, workspaceId, recipientId, type, issueId, issueKey, issueTitle, actorName, detail,
                 sourceEventId, now, null);
     }
 
@@ -80,14 +80,14 @@ public final class Notification {
             UUID recipientId,
             NotificationType type,
             UUID issueId,
-            int issueNumber,
+            String issueKey,
             String issueTitle,
             String actorName,
             String detail,
             UUID sourceEventId,
             Instant createdAt,
             Instant readAt) {
-        return new Notification(id, workspaceId, recipientId, type, issueId, issueNumber, issueTitle, actorName, detail,
+        return new Notification(id, workspaceId, recipientId, type, issueId, issueKey, issueTitle, actorName, detail,
                 sourceEventId, createdAt, readAt);
     }
 
@@ -133,8 +133,8 @@ public final class Notification {
         return issueId;
     }
 
-    public int issueNumber() {
-        return issueNumber;
+    public String issueKey() {
+        return issueKey;
     }
 
     public String issueTitle() {

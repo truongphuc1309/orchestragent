@@ -117,7 +117,7 @@ public final class FakeDaemonApi implements AutoCloseable {
                 trigger,
                 1,
                 new AgentInfo(UUID.randomUUID(), "Builder", "Write tidy code.", null),
-                new IssueInfo(UUID.randomUUID(), 12, title, "Describe the project."),
+                new IssueInfo(UUID.randomUUID(), "WEB-12", 12, title, "Describe the project."),
                 List.of(new CommentInfo("member", "Ana", "Please hurry", Instant.parse("2026-11-01T10:00:00Z"))),
                 priorSessionId,
                 priorWorkDir);

@@ -89,7 +89,8 @@ class AgentAssigneeApiTest extends IntegrationTest {
     }
 
     private String createIssue(String title) throws Exception {
-        String body = mvc.perform(as(json(post(issuesBase), "{\"title\":\"" + title + "\"}"), mia))
+        String body = mvc.perform(as(json(post(issuesBase),
+                        "{\"projectId\":\"" + projectIn(workspaceId, mia) + "\",\"title\":\"" + title + "\"}"), mia))
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();
         return JsonPath.read(body, "$.id");
@@ -117,7 +118,7 @@ class AgentAssigneeApiTest extends IntegrationTest {
 
     @Test
     void anIssueCanBeCreatedForAnAgent() throws Exception {
-        mvc.perform(as(json(post(issuesBase), "{\"title\":\"For the agent\"," + agentAssignee(agentId).substring(1)), mia))
+        mvc.perform(as(json(post(issuesBase), "{\"projectId\":\"" + projectIn(workspaceId, mia) + "\",\"title\":\"For the agent\"," + agentAssignee(agentId).substring(1)), mia))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.assignee.type").value("agent"))
                 .andExpect(jsonPath("$.assignee.name").value("Builder"));
@@ -147,7 +148,7 @@ class AgentAssigneeApiTest extends IntegrationTest {
         mvc.perform(as(json(put(issuesBase + "/" + issueId + "/assignee"), agentAssignee(agentId)), mia))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("issue.invalid_assignee"));
-        mvc.perform(as(json(post(issuesBase), "{\"title\":\"x\"," + agentAssignee(agentId).substring(1)), mia))
+        mvc.perform(as(json(post(issuesBase), "{\"projectId\":\"" + projectIn(workspaceId, mia) + "\",\"title\":\"x\"," + agentAssignee(agentId).substring(1)), mia))
                 .andExpect(status().isBadRequest());
         mvc.perform(get(issuesBase + "/" + issueId).cookie(mia)).andExpect(jsonPath("$.assignee").doesNotExist());
 

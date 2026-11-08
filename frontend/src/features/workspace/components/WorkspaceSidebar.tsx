@@ -1,6 +1,7 @@
-import { BarChart3, Bot, CircleDot, Home, Inbox, KeyRound, Server, Users, type LucideIcon } from 'lucide-react'
+import { BarChart3, Bot, CircleDot, FolderKanban, Home, Inbox, KeyRound, Server, Users, type LucideIcon } from 'lucide-react'
 import { NavLink } from 'react-router'
 import { useUnreadCount } from '@/features/inbox/hooks'
+import { useProjects } from '@/features/project/hooks'
 import { cn } from '@/shared/lib/utils'
 import type { Workspace } from '../schemas'
 import { WorkspaceSwitcher } from './WorkspaceSwitcher'
@@ -11,12 +12,15 @@ function SidebarLink({
   end,
   badge,
   children,
+  nested,
 }: {
   to: string
   icon: LucideIcon
   end?: boolean
   badge?: string
   children: string
+  /** A smaller, indented entry under another one (the projects under "Projects"). */
+  nested?: boolean
 }) {
   return (
     <NavLink
@@ -25,12 +29,13 @@ function SidebarLink({
       className={({ isActive }) =>
         cn(
           'flex h-8 items-center gap-2 rounded-md px-2 text-sm no-underline hover:no-underline',
+          nested && 'h-7 pl-8',
           isActive ? 'bg-selected font-medium text-selected-foreground' : 'text-foreground hover:bg-accent',
         )
       }
     >
-      <Icon className="size-4 shrink-0" />
-      <span className="flex-1">{children}</span>
+      {!nested && <Icon className="size-4 shrink-0" />}
+      <span className="flex-1 truncate">{children}</span>
       {badge !== undefined && (
         <span className="rounded-full bg-primary px-1.5 text-xs leading-5 font-semibold text-primary-foreground">
           {badge}
@@ -53,6 +58,7 @@ export function WorkspaceSidebar({ current, workspaces }: { current: Workspace; 
   const base = `/w/${current.slug}`
   const unread = useUnreadCount(current.id)
   const badge = unreadBadge(unread.data)
+  const projects = useProjects(current.id)
 
   return (
     <aside className="hidden w-60 shrink-0 flex-col gap-4 border-r bg-sidebar p-2 md:flex">
@@ -67,6 +73,14 @@ export function WorkspaceSidebar({ current, workspaces }: { current: Workspace; 
         <SidebarLink to={`${base}/issues`} icon={CircleDot}>
           Issues
         </SidebarLink>
+        <SidebarLink to={`${base}/projects`} icon={FolderKanban} end>
+          Projects
+        </SidebarLink>
+        {(projects.data ?? []).map((project) => (
+          <SidebarLink key={project.id} to={`${base}/projects/${project.key}`} icon={FolderKanban} nested>
+            {project.name}
+          </SidebarLink>
+        ))}
         <SidebarLink to={`${base}/agents`} icon={Bot}>
           Agents
         </SidebarLink>

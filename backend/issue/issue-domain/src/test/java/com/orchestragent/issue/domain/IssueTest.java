@@ -3,6 +3,7 @@ package com.orchestragent.issue.domain;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.orchestragent.shared.error.ConflictException;
 import com.orchestragent.shared.error.ValidationException;
 import java.time.Instant;
 import java.util.UUID;
@@ -17,10 +18,12 @@ class IssueTest {
 
     private final UUID workspaceId = UUID.randomUUID();
     private final UUID userId = UUID.randomUUID();
+    private final Project project =
+            Project.create(workspaceId, new ProjectKey("WEB"), "Web app", "", userId, T0);
 
     private Issue newIssue() {
         return Issue.create(
-                workspaceId, 7, "Fix login", "Details", Status.TODO, Priority.MEDIUM, null, Actor.member(userId), 1024, T0);
+                project, 7, "Fix login", "Details", Status.TODO, Priority.MEDIUM, null, Actor.member(userId), 1024, T0);
     }
 
     // ---- creation and validation -------------------------------------------------------------------------
@@ -30,7 +33,9 @@ class IssueTest {
         Issue issue = newIssue();
 
         assertThat(issue.workspaceId()).isEqualTo(workspaceId);
+        assertThat(issue.projectId()).isEqualTo(project.id());
         assertThat(issue.number()).isEqualTo(7);
+        assertThat(issue.key()).hasToString("WEB-7");
         assertThat(issue.title()).isEqualTo("Fix login");
         assertThat(issue.description()).isEqualTo("Details");
         assertThat(issue.status()).isEqualTo(Status.TODO);
@@ -43,9 +48,18 @@ class IssueTest {
     }
 
     @Test
+    void anArchivedProjectTakesNoNewIssues() {
+        project.archive(T1);
+
+        assertThatThrownBy(this::newIssue)
+                .isInstanceOf(ConflictException.class)
+                .hasFieldOrPropertyWithValue("code", "project.archived");
+    }
+
+    @Test
     void titleIsTrimmed() {
         Issue issue =
-                Issue.create(workspaceId, 1, "  Padded  ", "", Status.BACKLOG, Priority.NONE, null, Actor.member(userId), 1, T0);
+                Issue.create(project, 1, "  Padded  ", "", Status.BACKLOG, Priority.NONE, null, Actor.member(userId), 1, T0);
 
         assertThat(issue.title()).isEqualTo("Padded");
     }
@@ -53,7 +67,7 @@ class IssueTest {
     @Test
     void descriptionDefaultsToEmpty() {
         Issue issue =
-                Issue.create(workspaceId, 1, "Title", null, Status.BACKLOG, Priority.NONE, null, Actor.member(userId), 1, T0);
+                Issue.create(project, 1, "Title", null, Status.BACKLOG, Priority.NONE, null, Actor.member(userId), 1, T0);
 
         assertThat(issue.description()).isEmpty();
     }
@@ -160,7 +174,7 @@ class IssueTest {
     void anyStatusCanFollowAnyOther(Status target) {
         for (Status start : Status.values()) {
             Issue issue = Issue.create(
-                    workspaceId, 1, "T", "", start, Priority.NONE, null, Actor.member(userId), 1024, T0);
+                    project, 1, "T", "", start, Priority.NONE, null, Actor.member(userId), 1024, T0);
 
             boolean changed = issue.moveTo(target, 2048, T1);
 

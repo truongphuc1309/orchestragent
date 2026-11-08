@@ -41,8 +41,11 @@ export const actorSchema = z.object({
 })
 export type Actor = z.infer<typeof actorSchema>
 
+/** {@code key} is how people name the issue: its project's key and its number in that project (WEB-12). */
 export const issueSchema = z.object({
   id: z.uuid(),
+  projectId: z.uuid(),
+  key: z.string(),
   number: z.number().int(),
   title: z.string(),
   description: z.string(),
@@ -82,6 +85,7 @@ export const titleSchema = z
   .max(MAX_TITLE, `Use at most ${MAX_TITLE} characters`)
 
 export const createIssueFormSchema = z.object({
+  projectId: z.string().min(1, 'Choose a project'),
   title: titleSchema,
   description: z.string().max(MAX_DESCRIPTION, `Use at most ${MAX_DESCRIPTION} characters`),
   status: statusSchema,
@@ -110,6 +114,7 @@ export interface AssigneeRef {
 
 /** What the create dialog sends; it mirrors the server's request. */
 export interface NewIssue {
+  projectId: string
   title: string
   description: string
   status: Status

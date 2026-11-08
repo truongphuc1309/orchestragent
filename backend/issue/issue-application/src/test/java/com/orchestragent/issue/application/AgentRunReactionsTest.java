@@ -8,6 +8,7 @@ import com.orchestragent.issue.application.Fakes.FakeUsers;
 import com.orchestragent.issue.application.Fakes.InMemoryComments;
 import com.orchestragent.issue.application.Fakes.InMemoryIssues;
 import com.orchestragent.issue.application.Fakes.InMemoryNumbers;
+import com.orchestragent.issue.application.Fakes.InMemoryProjects;
 import com.orchestragent.issue.application.IssueService.CreateIssue;
 import com.orchestragent.issue.application.Views.IssueView;
 import com.orchestragent.issue.contract.ActorType;
@@ -27,6 +28,8 @@ import org.junit.jupiter.api.Test;
 class AgentRunReactionsTest {
 
     private final InMemoryIssues issues = new InMemoryIssues();
+
+    private final InMemoryProjects projects = new InMemoryProjects();
     private final InMemoryComments comments = new InMemoryComments();
     private final FakeAccess access = new FakeAccess();
     private final FakeUsers users = new FakeUsers();
@@ -34,7 +37,7 @@ class AgentRunReactionsTest {
     private final List<Object> published = new ArrayList<>();
     private final IssueEvents events = new IssueEvents(published::add, Fakes.clock());
     private final IssueService issueService =
-            new IssueService(issues, new InMemoryNumbers(), access, agents, new ActorNames(users, agents), events, Fakes.clock());
+            new IssueService(issues, projects, new InMemoryNumbers(projects), access, agents, new ActorNames(users, agents), events, Fakes.clock());
     private final AgentRunReactions reactions = new AgentRunReactions(issues, comments, events, Fakes.clock());
 
     private final UUID workspace = UUID.randomUUID();
@@ -44,7 +47,7 @@ class AgentRunReactionsTest {
 
     {
         access.join(workspace, member, WorkspaceRole.MEMBER);
-        issue = issueService.create(member, workspace, new CreateIssue("Fix it", null, Status.TODO, null, null));
+        issue = issueService.create(member, workspace, new CreateIssue(projects.defaultIn(workspace), "Fix it", null, Status.TODO, null, null));
         published.clear();
     }
 
@@ -93,7 +96,7 @@ class AgentRunReactionsTest {
 
     @Test
     void theMovedIssueGoesToTheBottomOfItsColumn() {
-        IssueView waiting = issueService.create(member, workspace, new CreateIssue("Already working", null, Status.IN_PROGRESS, null, null));
+        IssueView waiting = issueService.create(member, workspace, new CreateIssue(projects.defaultIn(workspace), "Already working", null, Status.IN_PROGRESS, null, null));
 
         reactions.taskStarted(workspace, issue.id(), agentId);
 

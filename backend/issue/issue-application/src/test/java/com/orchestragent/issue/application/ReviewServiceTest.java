@@ -9,6 +9,7 @@ import com.orchestragent.issue.application.Fakes.FakeUsers;
 import com.orchestragent.issue.application.Fakes.InMemoryComments;
 import com.orchestragent.issue.application.Fakes.InMemoryIssues;
 import com.orchestragent.issue.application.Fakes.InMemoryNumbers;
+import com.orchestragent.issue.application.Fakes.InMemoryProjects;
 import com.orchestragent.issue.application.IssueService.CreateIssue;
 import com.orchestragent.issue.application.Views.IssueView;
 import com.orchestragent.issue.contract.ActorType;
@@ -30,6 +31,8 @@ import org.junit.jupiter.api.Test;
 class ReviewServiceTest {
 
     private final InMemoryIssues issues = new InMemoryIssues();
+
+    private final InMemoryProjects projects = new InMemoryProjects();
     private final InMemoryComments comments = new InMemoryComments();
     private final FakeAccess access = new FakeAccess();
     private final FakeUsers users = new FakeUsers();
@@ -37,7 +40,7 @@ class ReviewServiceTest {
     private final List<Object> published = new ArrayList<>();
     private final IssueEvents events = new IssueEvents(published::add, Fakes.clock());
     private final IssueService issueService =
-            new IssueService(issues, new InMemoryNumbers(), access, agents, new ActorNames(users, agents), events, Fakes.clock());
+            new IssueService(issues, projects, new InMemoryNumbers(projects), access, agents, new ActorNames(users, agents), events, Fakes.clock());
     private final ReviewService service = new ReviewService(issues, comments, access, issueService, events, Fakes.clock());
 
     private final UUID workspace = UUID.randomUUID();
@@ -52,7 +55,7 @@ class ReviewServiceTest {
     }
 
     private IssueView issueIn(Status status) {
-        IssueView created = issueService.create(reviewer, workspace, new CreateIssue("Work", null, status, null, null));
+        IssueView created = issueService.create(reviewer, workspace, new CreateIssue(projects.defaultIn(workspace), "Work", null, status, null, null));
         published.clear();
         return created;
     }
@@ -81,7 +84,7 @@ class ReviewServiceTest {
 
     @Test
     void theApprovedIssueGoesToTheBottomOfTheDoneColumn() {
-        IssueView earlier = issueService.create(reviewer, workspace, new CreateIssue("Earlier", null, Status.DONE, null, null));
+        IssueView earlier = issueService.create(reviewer, workspace, new CreateIssue(projects.defaultIn(workspace), "Earlier", null, Status.DONE, null, null));
         IssueView issue = issueIn(Status.IN_REVIEW);
 
         service.approve(reviewer, workspace, issue.id());

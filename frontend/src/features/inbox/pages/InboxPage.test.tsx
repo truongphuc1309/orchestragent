@@ -2,7 +2,7 @@ import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { routes } from '@/app/routes'
-import { ACME, ADA, issue, issueId } from '@/test/fixtures'
+import { ACM_PROJECT, ACME, ADA, issue, issueId } from '@/test/fixtures'
 import { FakeEventSource } from '@/test/fakeEventSource'
 import { fakeServer, json, noContent, problem } from '@/test/fakeServer'
 import { renderRoutes } from '@/test/render'
@@ -16,7 +16,7 @@ function notification(n: number, overrides: Partial<Notification>): Notification
     id: `0198f1c0-0000-7000-8000-0000000004${String(n).padStart(2, '0')}`,
     type: 'issue_assigned',
     issueId: issueId(n),
-    issueNumber: n,
+    issueKey: `ACM-${n}`,
     issueTitle: `Issue ${n}`,
     actorName: 'Mia',
     detail: null,
@@ -53,11 +53,12 @@ function inboxServer(initial: Notification[] = [ASSIGNED, FINISHED, FAILED]) {
       return json(200, { ...ASSIGNED, readAt: new Date().toISOString() })
     },
     // The issue page that opening a notification leads to.
-    [`GET /api/workspaces/${ACME.id}/issues/number/1`]: () => json(200, issue({ id: issueId(1), number: 1, title: 'Write the docs' })),
+    [`GET /api/workspaces/${ACME.id}/issues/key/ACM-1`]: () => json(200, issue({ id: issueId(1), number: 1, title: 'Write the docs' })),
     [`GET /api/workspaces/${ACME.id}/issues/${issueId(1)}/comments`]: () => json(200, []),
     [`GET /api/workspaces/${ACME.id}/members`]: () => json(200, []),
     [`GET /api/workspaces/${ACME.id}/agents`]: () => json(200, []),
     [`GET /api/workspaces/${ACME.id}/tasks?issueId=${issueId(1)}`]: () => json(200, []),
+    [`GET /api/workspaces/${ACME.id}/projects?includeArchived=true`]: () => json(200, [ACM_PROJECT]),
   })
   return { state, server }
 }
@@ -88,7 +89,7 @@ describe('inbox page', () => {
       expect.stringContaining('Builder could not finish ACM-3: it ran out of time'),
     ])
     expect(items[2]?.textContent).not.toContain('Unread')
-    expect(within(list).getByRole('link', { name: /assigned you ACM-1/ })).toHaveAttribute('href', '/w/acme/issues/1')
+    expect(within(list).getByRole('link', { name: /assigned you ACM-1/ })).toHaveAttribute('href', '/w/acme/issues/ACM-1')
   })
 
   it('shows the unread count in the navigation', async () => {
@@ -105,7 +106,7 @@ describe('inbox page', () => {
 
     await user.click(await screen.findByRole('link', { name: /assigned you ACM-1/ }))
 
-    await waitFor(() => expect(router.state.location.pathname).toBe('/w/acme/issues/1'))
+    await waitFor(() => expect(router.state.location.pathname).toBe('/w/acme/issues/ACM-1'))
     expect(server.calls(`POST ${BASE}/${ASSIGNED.id}/read`)).toHaveLength(1)
     await waitFor(() => expect(badge()).toBe('1'))
   })

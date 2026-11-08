@@ -39,7 +39,7 @@ public class InboxService {
             UUID id,
             NotificationType type,
             UUID issueId,
-            int issueNumber,
+            String issueKey,
             String issueTitle,
             String actorName,
             String detail,
@@ -47,7 +47,7 @@ public class InboxService {
             Instant readAt) {
 
         static NotificationView from(Notification n) {
-            return new NotificationView(n.id().value(), n.type(), n.issueId(), n.issueNumber(), n.issueTitle(),
+            return new NotificationView(n.id().value(), n.type(), n.issueId(), n.issueKey(), n.issueTitle(),
                     n.actorName(), n.detail(), n.createdAt(), n.readAt());
         }
     }

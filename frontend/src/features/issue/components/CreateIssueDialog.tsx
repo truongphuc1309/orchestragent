@@ -1,7 +1,10 @@
 import { zodResolver } from '@hookform/resolvers/zod'
+import { useEffect } from 'react'
 import { Controller, useForm } from 'react-hook-form'
+import { Link } from 'react-router'
 import { toast } from 'sonner'
 import { useAgents } from '@/features/agent/hooks'
+import { useProjects } from '@/features/project/hooks'
 import { useMembers } from '@/features/workspace/hooks'
 import type { Workspace } from '@/features/workspace/schemas'
 import { messageOf } from '@/shared/api/errors'
@@ -9,10 +12,11 @@ import { Button } from '@/shared/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/shared/ui/dialog'
 import { Input } from '@/shared/ui/input'
 import { Label } from '@/shared/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/ui/select'
 import { Textarea } from '@/shared/ui/textarea'
 import { decodeAssignee, encodeAssignee } from '../assignee'
 import { useCreateIssue } from '../hooks'
-import { issueKey } from '../key'
+import { useIssueViewStore } from '../filters'
 import { createIssueFormSchema, type CreateIssueForm, type Status } from '../schemas'
 import { AssigneeSelect, PrioritySelect, StatusSelect } from './IssueFields'
 
@@ -22,9 +26,11 @@ interface Props {
   onOpenChange: (open: boolean) => void
   /** The column the dialog was opened from; new issues start there. */
   initialStatus?: Status
+  /** The project page the dialog was opened from; otherwise the project of the last issue created here. */
+  initialProjectId?: string
 }
 
-export function CreateIssueDialog({ workspace, open, onOpenChange, initialStatus = 'todo' }: Props) {
+export function CreateIssueDialog({ workspace, open, onOpenChange, initialStatus = 'todo', initialProjectId }: Props) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-xl">
@@ -33,7 +39,12 @@ export function CreateIssueDialog({ workspace, open, onOpenChange, initialStatus
           <DialogDescription>Describe the work. You can assign it to a teammate now or later.</DialogDescription>
         </DialogHeader>
         {/* The content unmounts when the dialog closes, so every opening starts with an empty form. */}
-        <CreateIssueFormView workspace={workspace} initialStatus={initialStatus} onClose={() => onOpenChange(false)} />
+        <CreateIssueFormView
+          workspace={workspace}
+          initialStatus={initialStatus}
+          initialProjectId={initialProjectId}
+          onClose={() => onOpenChange(false)}
+        />
       </DialogContent>
     </Dialog>
   )
@@ -42,23 +53,52 @@ export function CreateIssueDialog({ workspace, open, onOpenChange, initialStatus
 interface FormProps {
   workspace: Workspace
   initialStatus: Status
+  initialProjectId: string | undefined
   onClose: () => void
 }
 
-function CreateIssueFormView({ workspace, initialStatus, onClose }: FormProps) {
+function CreateIssueFormView({ workspace, initialStatus, initialProjectId, onClose }: FormProps) {
   const members = useMembers(workspace.id)
   const agents = useAgents(workspace.id)
+  // Active projects only: an archived project takes no new issues.
+  const projects = useProjects(workspace.id)
+  const lastProjectId = useIssueViewStore((state) => state.lastProjectByWorkspace[workspace.id])
+  const setLastProject = useIssueViewStore((state) => state.setLastProject)
   const create = useCreateIssue(workspace.id)
+
+  const active = projects.data ?? []
+  const preferred = [initialProjectId, lastProjectId].find(
+    (id) => id !== undefined && active.some((project) => project.id === id),
+  )
+  const defaultProjectId = preferred ?? active[0]?.id
+  const noProject = projects.isSuccess && active.length === 0
+
   const form = useForm<CreateIssueForm>({
     resolver: zodResolver(createIssueFormSchema),
-    defaultValues: { title: '', description: '', status: initialStatus, priority: 'none', assignee: '' },
+    defaultValues: {
+      projectId: defaultProjectId ?? '',
+      title: '',
+      description: '',
+      status: initialStatus,
+      priority: 'none',
+      assignee: '',
+    },
   })
   const titleError = form.formState.errors.title
   const descriptionError = form.formState.errors.description
+  const projectError = form.formState.errors.projectId
+
+  // The projects may arrive after the form opened: choose the default then, if nothing is chosen yet.
+  useEffect(() => {
+    if (defaultProjectId !== undefined && form.getValues('projectId') === '') {
+      form.setValue('projectId', defaultProjectId)
+    }
+  }, [defaultProjectId, form])
 
   const submit = form.handleSubmit((values) =>
     create.mutate(
       {
+        projectId: values.projectId,
         title: values.title,
         description: values.description,
         status: values.status,
@@ -67,7 +107,8 @@ function CreateIssueFormView({ workspace, initialStatus, onClose }: FormProps) {
       },
       {
         onSuccess: (issue) => {
-          toast.success(`${issueKey(workspace.slug, issue.number)} was created`)
+          setLastProject(workspace.id, issue.projectId)
+          toast.success(`${issue.key} was created`)
           onClose()
         },
       },
@@ -76,6 +117,42 @@ function CreateIssueFormView({ workspace, initialStatus, onClose }: FormProps) {
 
   return (
     <form onSubmit={submit} noValidate className="flex flex-col gap-4">
+      <Controller
+        control={form.control}
+        name="projectId"
+        render={({ field }) => (
+          <div className="flex flex-col gap-1.5">
+            <Label>Project</Label>
+            <Select value={field.value === '' ? undefined : field.value} onValueChange={field.onChange}>
+              <SelectTrigger aria-label="Project" aria-invalid={projectError !== undefined} className="w-full sm:w-72">
+                <SelectValue placeholder={projects.isPending ? 'Loading projects…' : 'Choose a project'} />
+              </SelectTrigger>
+              <SelectContent>
+                {active.map((project) => (
+                  <SelectItem key={project.id} value={project.id}>
+                    <span className="text-muted-foreground">{project.key}</span>
+                    {project.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {projectError && (
+              <p role="alert" className="text-sm text-destructive">
+                {projectError.message}
+              </p>
+            )}
+            {noProject && (
+              <p role="status" className="text-sm text-muted-foreground">
+                Issues live in projects, and {workspace.name} has none yet.{' '}
+                <Link to={`/w/${workspace.slug}/projects`} onClick={onClose}>
+                  Create a project
+                </Link>{' '}
+                first.
+              </p>
+            )}
+          </div>
+        )}
+      />
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="issue-title">Title</Label>
         <Input
@@ -153,7 +230,7 @@ function CreateIssueFormView({ workspace, initialStatus, onClose }: FormProps) {
         <Button type="button" variant="ghost" onClick={onClose}>
           Cancel
         </Button>
-        <Button type="submit" disabled={create.isPending}>
+        <Button type="submit" disabled={create.isPending || noProject}>
           {create.isPending ? 'Creating…' : 'Create'}
         </Button>
       </DialogFooter>

@@ -1,5 +1,5 @@
-import type { DndContextProps, DragEndEvent } from '@dnd-kit/core'
-import { screen, waitFor, within } from '@testing-library/react'
+import type { DndContextProps, DragEndEvent, DragOverEvent, DragStartEvent } from '@dnd-kit/core'
+import { act, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { routes } from '@/app/routes'
 import { ACME, ADA, issue, issueId } from '@/test/fixtures'
@@ -46,6 +46,25 @@ function dragEnd(activeId: string, over: { id: string; status: Status } | null):
     collisions: null,
     delta: { x: 0, y: 0 },
   }
+}
+
+function dragStart(activeId: string): DragStartEvent {
+  return {
+    active: { id: activeId, data: { current: undefined }, rect: { current: { initial: null, translated: null } } },
+    activatorEvent: new Event('pointerdown'),
+  }
+}
+
+/** The same shape as a drop: dnd-kit reports where the dragged card is while it moves. */
+function dragOver(activeId: string, over: { id: string; status: Status }): DragOverEvent {
+  return dragEnd(activeId, over)
+}
+
+function handlers(): DndContextProps {
+  if (dnd === undefined) {
+    throw new Error('The board has not rendered a DndContext')
+  }
+  return dnd
 }
 
 function dropped(event: DragEndEvent) {
@@ -121,6 +140,64 @@ describe('dropping a card on the board', () => {
     await waitFor(() => expect(titlesIn('In progress')).toEqual(['Delta', 'Alpha']))
     expect(titlesIn('To do')).toEqual(['Bravo', 'Charlie'])
     answer(json(200, { ...A, status: 'in_progress', position: 2048 }))
+  })
+
+  it('moves the card into the column it is dragged over, before it is dropped', async () => {
+    const server = fakeServer(baseHandlers())
+    renderRoutes(routes, ['/w/acme/issues'])
+    await screen.findByText('Alpha')
+
+    act(() => handlers().onDragStart?.(dragStart(A.id)))
+    act(() => handlers().onDragOver?.(dragOver(A.id, { id: D.id, status: 'in_progress' })))
+
+    // The new column opens a gap where the card will land and the old one closes up, so the drop animation flies
+    // to the right place instead of back to where the card came from.
+    expect(titlesIn('In progress')).toEqual(['Alpha', 'Delta'])
+    expect(titlesIn('To do')).toEqual(['Bravo', 'Charlie'])
+    expect(server.requests.filter((request) => request.method === 'POST')).toEqual([])
+  })
+
+  it('never shows the old order between the drop and the update of the issues', async () => {
+    let answer: (response: Response) => void = () => {}
+    fakeServer(baseHandlers({ [MOVE(C.id)]: () => new Promise<Response>((resolve) => (answer = resolve)) }))
+    renderRoutes(routes, ['/w/acme/issues'])
+    await screen.findByText('Alpha')
+
+    act(() => handlers().onDragStart?.(dragStart(C.id)))
+    // Synchronously, in the same render as the end of the drag: nothing waits for the cache.
+    act(() => handlers().onDragEnd?.(dragEnd(C.id, { id: A.id, status: 'todo' })))
+
+    expect(titlesIn('To do')).toEqual(['Charlie', 'Alpha', 'Bravo'])
+    answer(json(200, { ...C, position: 512 }))
+    await waitFor(() => expect(titlesIn('To do')).toEqual(['Charlie', 'Alpha', 'Bravo']))
+  })
+
+  it('keeps the place chosen during the drag when the card is dropped on the background of its new column', async () => {
+    const server = fakeServer(baseHandlers({ [MOVE(A.id)]: () => json(200, { ...A, status: 'in_progress' }) }))
+    renderRoutes(routes, ['/w/acme/issues'])
+    await screen.findByText('Alpha')
+
+    act(() => handlers().onDragStart?.(dragStart(A.id)))
+    act(() => handlers().onDragOver?.(dragOver(A.id, { id: D.id, status: 'in_progress' })))
+    act(() => handlers().onDragEnd?.(dragEnd(A.id, { id: 'column:in_progress', status: 'in_progress' })))
+
+    await waitFor(() => expect(server.calls(MOVE(A.id))).toHaveLength(1))
+    expect(server.calls(MOVE(A.id))[0]?.body).toEqual({ status: 'in_progress', belowId: D.id })
+  })
+
+  it('puts everything back when the drag is cancelled', async () => {
+    const server = fakeServer(baseHandlers())
+    renderRoutes(routes, ['/w/acme/issues'])
+    await screen.findByText('Alpha')
+
+    act(() => handlers().onDragStart?.(dragStart(A.id)))
+    act(() => handlers().onDragOver?.(dragOver(A.id, { id: 'column:done', status: 'done' })))
+    expect(titlesIn('Done')).toEqual(['Alpha'])
+    act(() => handlers().onDragCancel?.({ ...dragEnd(A.id, null), over: null }))
+
+    expect(titlesIn('To do')).toEqual(['Alpha', 'Bravo', 'Charlie'])
+    expect(titlesIn('Done')).toEqual([])
+    expect(server.requests.filter((request) => request.method === 'POST')).toEqual([])
   })
 
   it('puts the card back and explains when the server refuses the move', async () => {

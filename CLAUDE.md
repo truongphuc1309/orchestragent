@@ -8,9 +8,11 @@ that the code alone does not explain.
 
 ## Status
 
-Steps 0 to 11 of `PLAN.md` are implemented and **committed by the human**. **Step 12 (E2E with Playwright, login
-rate limit, seed data, docs) is implemented and not committed yet** (waiting for the human's review). All steps of the
-plan are done; what is left is review, committing, and the open points below.
+Steps 0 to 12 of `PLAN.md` are implemented and **committed by the human**. **Step 13 (projects inside a workspace,
+issue keys from the project key) is implemented and not committed yet** (waiting for the human's review; it changes
+the daemon protocol, `IssueInfo` gained `key`). Its decisions (chosen by the user): project key fixed after creation,
+any member creates projects, a page per project plus a Project filter on the Issues page, archive instead of delete;
+projects live in the `issue` context, not a new one.
 
 | Step | What | Commit |
 | ---- | ---- | ------ |
@@ -25,9 +27,16 @@ plan are done; what is left is review, committing, and the open points below.
 | 9 | Daemon CLI, provider SPI, mock provider | `5a59664` |
 | 10 | Claude Code provider | `30e90bc` |
 | 11 | Usage page, inbox context and page | `52d0020` |
-| 12 | Login rate limit, dev seed data, Playwright E2E, docs | not committed |
+| 12 | Login rate limit, dev seed data, Playwright E2E, docs | `88090d2` |
+| 13 | Projects, per-project issue keys (changes the daemon API: needs human review) | not committed |
 
-Last full run (step 12): `./gradlew build` 865 tests (745 backend, 120 daemon; the real-Claude smoke test skipped),
+Last full run (step 13): `./gradlew build` 952 tests (829 backend, 123 daemon; the real-Claude smoke test skipped), frontend 429 tests (34 files), E2E 1 test passing;
+`typecheck`, `lint`, `build` clean. 5 break-the-rule checks (one needed a new test first, see PLAN.md step 13). By hand
+on the dev database with old data (a `pg_dump` was taken first, outside the repo): the migration gave each workspace
+`General`/`GEN` with the old numbers; projects, issues, filter and archive checked in the browser. Not done by hand: a
+real mouse or keyboard drag on a project board (checked through the move API instead).
+
+Step 12 run: `./gradlew build` 865 tests (745 backend, 120 daemon; the real-Claude smoke test skipped),
 frontend 374 tests (31 files), E2E 1 test passing; `typecheck`, `lint`, `build` clean. 5 break-the-rule checks each failed
 the right test (see PLAN.md step 12). Not done by hand: the seed data on the real dev database (only an integration test
 on Postgres).
@@ -98,6 +107,35 @@ processes in this harness can only be killed hard; `DaemonTest` covers it.
 - Frontend `fakeServer` answers `GET /api/workspaces/{id}/inbox/unread-count` with 0 when a test does not handle it
   (every workspace page asks for it, for the sidebar badge). That is the only default; tests of the badge handle it.
 - The daily usage chart is plain HTML/CSS (no chart library), one measure at a time, with a table view.
+
+## Projects (step 13)
+
+- Projects are in the issue context: `Project`, `ProjectKey`, `IssueKey`, `ProjectPolicy`, `ProjectRepository` (domain),
+  `ProjectService` (application), `ProjectController`, `ProjectEntity`, migration `issue/V3__projects.sql`. Inbox
+  migration `inbox/V2__issue_key.sql` replaced `issue_number` with `issue_key`.
+- Issue keys (`WEB-12`) are built by the server and never change, so they may be copied (inbox, daemon prompt, work
+  folder). Issues store `project_key`; a composite FK keeps it equal to the project's. `projects.next_number` is not
+  mapped in JPA on purpose (only `IssueNumbersAdapter` changes it with SQL).
+- Old data: one `General` project with key `GEN` per workspace that had issues; inbox rows got `'GEN-' || issue_number`.
+  The user's dev database is migrated (test data left in "Daemon Check": archived project `WEB` with `WEB-1..3`).
+- Board positions stay per (workspace, status) across projects; a project board is a filtered view. Lists sort by
+  `created_at` (numbers only compare inside a project).
+- Live event `project.updated` (`{projectId}`) for every project change; the frontend invalidates
+  `['workspaces', ws, 'projects']`.
+- Frontend: `features/project` (pages `ProjectsPage`, `ProjectIssuesPage`, `ProjectFormDialog`, `suggestKey`), shared
+  `issue/components/IssuesView` for the Issues page and the project page, routes `projects`, `projects/:projectKey`,
+  `issues/:issueKey`. `issue/key.ts` is gone. Test fixtures: `ACM_PROJECT` (key `ACM`), so sample issues are still
+  `ACM-n`; `fakeServer` answers the sidebar's `GET .../projects` with `[]` by default (the second and last default);
+  `?includeArchived=true` (issue pages) must be handled by each test.
+- Tests that open an SSE stream must create their project first and wait until its `ProjectChanged` publication is
+  handled, or `project.updated` shows up in the stream (`EventStreamApiTest.projectAnnounced`).
+- Integration tests create issues with `projectIn(workspaceId, cookie)` / `createProject(...)` from `IntegrationTest`.
+- Board drag and drop (fixed after review): `IssueBoard` keeps an `Arrangement` (column order) from drag start until
+  the issues prop changes after the drop. `onDragOver` moves the card into the column it is over (so the drop
+  animation lands right); `onDragEnd` computes the final order synchronously (the cache update comes a microtask
+  later, after the drag has ended). A card's sortable `data.status` is the column showing it, not `issue.status`.
+  To measure it in the browser pane, widen the viewport first (`resize_window`): off-screen pointer events trigger
+  dnd-kit auto-scroll. A hidden pane never finishes Web Animations, so the drop overlay stays there.
 
 ## Hardening, seed data and E2E (step 12)
 
@@ -178,11 +216,15 @@ processes in this harness can only be killed hard; `DaemonTest` covers it.
   event is a real event (browsers hide SSE comments), and the client treats 60 s of silence as a dead connection.
 - Frontend: every response is parsed with zod, no `as` and no `any` outside `shared/ui` (lint errors). Colours only as
   tokens in `index.css` (a test forbids raw colours). Query keys always contain the workspace ID. `fakeServer` fails any
-  unhandled request, so tests that render a page must handle every request that page makes.
+  unhandled request, so tests that render a page must handle every request that page makes. Every element with
+  `overflow-auto`/`overflow-x-auto` must also be `relative` (a test checks it): otherwise absolute children such as
+  `sr-only` texts escape it and the whole page scrolls sideways (that was the board's case).
 
 ## Known limitations and open points
 
 - A daemon registers in the workspaces its owner has when it starts; joining another workspace needs a restart.
+- Issues cannot move to another project and project keys cannot change; no per-project roles; a new workspace has no
+  project until someone creates one.
 - Real stream-json has more message kinds than the parser shows (`system/thinking_tokens`, `rate_limit_event`,
   thinking blocks); they are skipped on purpose. Only one real recording exists (haiku, 2.1.311).
 - Cancelling a task leaves the issue in its current status (usually in progress) until someone moves it.
@@ -193,6 +235,9 @@ processes in this harness can only be killed hard; `DaemonTest` covers it.
   unassigning issues of members who leave a workspace; per-user limits and a rate limit on other endpoints; E2E on CI and failure scenarios in E2E.
 - Review focus for steps 2 and 8 (authentication and the daemon API): `DaemonSecurityConfig`, `DaemonController`,
   `TaskExecutionService` (ownership and membership checks), the claim SQL in `TaskRepositoryAdapter`.
+- Review focus for step 13 (daemon protocol change): `IssueInfo` (new `key`, `label()`), its mapping in
+  `DaemonController`, and how the daemon uses the server-sent key: `PromptBuilder` (heading through `oneLine`) and
+  `WorkDirs.folderLabel` (only letters, digits and dashes reach the file system, otherwise the number).
 
 ## Pitfalls met in tests
 

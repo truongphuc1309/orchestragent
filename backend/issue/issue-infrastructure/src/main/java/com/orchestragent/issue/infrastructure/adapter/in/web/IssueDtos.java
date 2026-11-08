@@ -33,6 +33,7 @@ final class IssueDtos {
     }
 
     record CreateIssueRequest(
+            @NotNull UUID projectId,
             @NotBlank @Size(max = 200) String title,
             @Size(max = 20_000) String description,
             String status,
@@ -68,6 +69,8 @@ final class IssueDtos {
 
     record IssueResponse(
             UUID id,
+            UUID projectId,
+            String key,
             int number,
             String title,
             String description,
@@ -82,6 +85,8 @@ final class IssueDtos {
         static IssueResponse from(IssueView view) {
             return new IssueResponse(
                     view.id(),
+                    view.projectId(),
+                    view.key(),
                     view.number(),
                     view.title(),
                     view.description(),

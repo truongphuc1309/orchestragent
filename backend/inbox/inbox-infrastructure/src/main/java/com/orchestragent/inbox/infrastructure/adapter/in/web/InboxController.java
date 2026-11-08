@@ -30,7 +30,7 @@ class InboxController {
             UUID id,
             String type,
             UUID issueId,
-            int issueNumber,
+            String issueKey,
             String issueTitle,
             String actorName,
             String detail,
@@ -38,7 +38,7 @@ class InboxController {
             Instant readAt) {
 
         static NotificationResponse from(NotificationView view) {
-            return new NotificationResponse(view.id(), view.type().code(), view.issueId(), view.issueNumber(),
+            return new NotificationResponse(view.id(), view.type().code(), view.issueId(), view.issueKey(),
                     view.issueTitle(), view.actorName(), view.detail(), view.createdAt(), view.readAt());
         }
     }

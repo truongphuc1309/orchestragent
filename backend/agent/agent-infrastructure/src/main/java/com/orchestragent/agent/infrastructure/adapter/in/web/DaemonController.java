@@ -159,7 +159,12 @@ class DaemonController {
                 task.trigger().code(),
                 task.attempt(),
                 new AgentInfo(task.agent().id(), task.agent().name(), task.agent().instructions(), task.agent().model()),
-                new IssueInfo(task.issue().id(), task.issue().number(), task.issue().title(), task.issue().description()),
+                new IssueInfo(
+                        task.issue().id(),
+                        task.issue().key(),
+                        task.issue().number(),
+                        task.issue().title(),
+                        task.issue().description()),
                 task.comments().stream()
                         .map(comment -> new CommentInfo(comment.authorType(), comment.authorName(), comment.body(), comment.createdAt()))
                         .toList(),

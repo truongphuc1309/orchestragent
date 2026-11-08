@@ -1,6 +1,5 @@
 import { CircleCheck, CircleX, UserPlus, type LucideIcon } from 'lucide-react'
 import { Link } from 'react-router'
-import { issueKey } from '@/features/issue/key'
 import { formatAgo, formatDateTime } from '@/shared/lib/format'
 import { cn } from '@/shared/lib/utils'
 import { notificationMessage } from '../message'
@@ -34,12 +33,11 @@ export function NotificationItem({
 }) {
   const Icon = ICON[notification.type]
   const unread = notification.readAt === null
-  const key = issueKey(workspaceSlug, notification.issueNumber)
 
   return (
     <li>
       <Link
-        to={`/w/${workspaceSlug}/issues/${notification.issueNumber}`}
+        to={`/w/${workspaceSlug}/issues/${notification.issueKey}`}
         onClick={() => onOpen(notification)}
         className={cn(
           'flex items-start gap-3 rounded-md px-3 py-2 text-foreground no-underline hover:bg-accent hover:no-underline',
@@ -50,7 +48,7 @@ export function NotificationItem({
         <span className="flex min-w-0 flex-1 flex-col gap-0.5">
           <span className={cn('text-sm', unread && 'font-semibold')}>
             {unread && <span className="sr-only">Unread: </span>}
-            {notificationMessage(notification, key)}
+            {notificationMessage(notification, notification.issueKey)}
           </span>
           <span className="truncate text-sm text-muted-foreground">{notification.issueTitle}</span>
         </span>

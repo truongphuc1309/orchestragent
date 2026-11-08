@@ -63,7 +63,7 @@ class NotificationRulesTest {
             assertThat(n.recipientId()).isEqualTo(mia);
             assertThat(n.type()).isEqualTo(NotificationType.ISSUE_ASSIGNED);
             assertThat(n.actorName()).isEqualTo("Olivia");
-            assertThat(n.issueNumber()).isEqualTo(12);
+            assertThat(n.issueKey()).isEqualTo("WEB-12");
             assertThat(n.issueTitle()).isEqualTo("Issue 12");
             assertThat(n.isRead()).isFalse();
         });
@@ -177,7 +177,7 @@ class NotificationRulesTest {
                 builder.id(), "Done"));
         published.clear();
 
-        IssueDeleted deleted = new IssueDeleted(UUID.randomUUID(), Instant.now(), workspace, issue.id(), 12);
+        IssueDeleted deleted = new IssueDeleted(UUID.randomUUID(), Instant.now(), workspace, issue.id(), "WEB-12");
         rules.issueDeleted(deleted);
         rules.issueDeleted(deleted);
 

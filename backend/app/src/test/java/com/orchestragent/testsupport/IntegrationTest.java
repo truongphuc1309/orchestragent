@@ -3,13 +3,17 @@ package com.orchestragent.testsupport;
 import static org.mockito.BDDMockito.given;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.orchestragent.PostgresTestConfiguration;
 import com.orchestragent.identity.application.port.LoginCodeGenerator;
 import com.orchestragent.identity.application.port.LoginCodeSender;
 import com.orchestragent.workspace.application.port.InvitationNotifier;
+import com.jayway.jsonpath.JsonPath;
 import jakarta.servlet.http.Cookie;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -100,5 +104,28 @@ public abstract class IntegrationTest {
 
     protected static MockHttpServletRequestBuilder json(MockHttpServletRequestBuilder builder, String body) {
         return builder.contentType("application/json").content(body);
+    }
+
+    /** One project per workspace for tests that only need somewhere to put issues (key {@code WEB}). */
+    private final Map<String, String> defaultProjects = new HashMap<>();
+
+    /** Creates a project in the workspace as {@code by} and returns its ID. */
+    protected String createProject(String workspaceId, Cookie by, String key) throws Exception {
+        String body = mvc.perform(json(post("/api/workspaces/" + workspaceId + "/projects"),
+                                "{\"key\":\"" + key + "\",\"name\":\"" + key + " project\"}")
+                        .cookie(by).with(xsrf()))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        return JsonPath.read(body, "$.id");
+    }
+
+    /** The ID of the test's {@code WEB} project of the workspace, created by {@code by} on first use. */
+    protected String projectIn(String workspaceId, Cookie by) throws Exception {
+        String known = defaultProjects.get(workspaceId);
+        if (known == null) {
+            known = createProject(workspaceId, by, "WEB");
+            defaultProjects.put(workspaceId, known);
+        }
+        return known;
     }
 }

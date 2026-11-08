@@ -88,7 +88,8 @@ vào bảng `event_publication` trong cùng giao dịch rồi giao cho listener 
 Vì không có JOIN hay khoá ngoại xuyên schema, mỗi schema có thể chuyển sang một database (hoặc một instance) bằng
 cách đổi `DB_URL` của dịch vụ đó. Flyway đã chạy theo từng module với bảng lịch sử riêng nên migration đi theo
 context. Dữ liệu cần ở nơi khác đã được **sao chép có chủ đích** thay vì JOIN (ví dụ thông báo trong inbox giữ bản sao
-số hiệu và tiêu đề issue, tên người và agent).
+mã issue như `WEB-12` và tiêu đề issue, tên người và agent). Sao chép mã issue an toàn vì key của project không bao
+giờ đổi (bước 13).
 
 ### 4.4. Những phần dùng chung phải đổi
 
@@ -114,6 +115,12 @@ số hiệu và tiêu đề issue, tên người và agent).
   giao lại sự kiện không sinh thêm gì. Thay cho khoá `(issue, trigger, comment)` ban đầu trong kế hoạch.
 - **Claim task bằng một câu SQL** với `FOR UPDATE SKIP LOCKED` và lease 60 giây: hai daemon không bao giờ nhận cùng
   một task, và một issue không chạy hai lần cùng lúc.
+- **Project nằm trong context `issue`** (bước 13), không thành context riêng: số của issue mới được cấp theo project
+  trong cùng giao dịch tạo issue, bằng một câu `UPDATE ... RETURNING` vốn đã từ chối project đã lưu trữ. Key do người
+  dùng đặt, duy nhất trong workspace (kể cả project đã lưu trữ) và **không đổi**, nên mã issue `KEY-n` được phép chép
+  sang inbox, prompt của agent và tên thư mục làm việc. Issue giữ bản sao key, được một khoá ngoại ghép
+  `(workspace_id, project_id, project_key)` giữ cho đúng. Dữ liệu cũ được migration chuyển vào project "General" (key
+  `GEN`) của từng workspace, giữ nguyên số.
 - **Daemon API tách khỏi API trình duyệt**: chuỗi bảo mật riêng, chỉ nhận API token (`oat_...`), không cookie, không
   CSRF. Mỗi lời gọi kiểm token thuộc về chủ của runtime hoặc task.
 - **Người ngoài workspace nhận 404, không phải 403**, để không lộ sự tồn tại của workspace.
@@ -160,6 +167,8 @@ Những điều dưới đây là quyết định phạm vi, không phải sơ s
 
 - Chưa có điều hướng cho màn hình hẹp (thanh bên bị ẩn dưới `md`).
 - Chưa gỡ gán issue của thành viên rời workspace.
+- Không chuyển được issue sang project khác và không đổi được key của project (mã issue phải giữ nguyên); chưa có
+  quyền hay thành viên riêng theo project. Workspace mới chưa có project nào cho tới khi người dùng tạo.
 - Dữ liệu seed của profile `dev` không có agent (agent cần runtime, mà runtime chỉ có khi daemon thật đăng ký).
 - E2E có một kịch bản và chỉ chạy trên Chrome (hoặc Edge); chưa chạy trong CI.
 

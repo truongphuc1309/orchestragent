@@ -68,6 +68,14 @@ class MockProviderTest {
     }
 
     @Test
+    void readsTheTitleUnderAHeadingWithAnIssueKey() {
+        RunResult result = run(PROMPT.replace("# Issue #7:", "# Issue WEB-7:"), new CancellationToken(), Duration.ofMinutes(1));
+
+        assertThat(result.isSuccess()).isTrue();
+        assertThat(result.output()).contains("Add a README");
+    }
+
+    @Test
     void aResumedRunKeepsTheSessionAndCountsTheRunsInTheFolder() {
         RunResult first = run(PROMPT, new CancellationToken(), Duration.ofMinutes(1));
         RunResult second = provider.run(

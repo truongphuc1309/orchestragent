@@ -13,7 +13,6 @@ import { formatDateTime } from '@/shared/lib/format'
 import { Button } from '@/shared/ui/button'
 import { assigneeRef } from '../assignee'
 import { useAssignIssue, useDeleteIssue, useUpdateIssue } from '../hooks'
-import { issueKey } from '../key'
 import { canDeleteIssue } from '../permissions'
 import type { Issue } from '../schemas'
 import { ActorAvatar } from './ActorAvatar'
@@ -94,7 +93,7 @@ export function IssueProperties({ workspace, issue }: { workspace: Workspace; is
           <ConfirmDialog
             open={confirmingDelete}
             onOpenChange={setConfirmingDelete}
-            title={`Delete ${issueKey(workspace.slug, issue.number)}?`}
+            title={`Delete ${issue.key}?`}
             description="The issue and all its comments will be deleted. This cannot be undone."
             confirmLabel="Delete"
             destructive
@@ -102,7 +101,7 @@ export function IssueProperties({ workspace, issue }: { workspace: Workspace; is
             onConfirm={() =>
               remove.mutate(issue.id, {
                 onSuccess: () => {
-                  toast.success(`${issueKey(workspace.slug, issue.number)} was deleted`)
+                  toast.success(`${issue.key} was deleted`)
                   void navigate(`/w/${workspace.slug}/issues`)
                 },
                 onError: (error) => {

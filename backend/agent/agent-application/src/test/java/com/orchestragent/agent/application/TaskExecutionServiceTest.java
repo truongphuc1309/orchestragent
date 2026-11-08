@@ -120,6 +120,7 @@ class TaskExecutionServiceTest {
             assertThat(brief.agent().instructions()).isEqualTo("Write clean code.");
             assertThat(brief.agent().model()).isEqualTo("sonnet");
             assertThat(brief.issue().number()).isEqualTo(7);
+            assertThat(brief.issue().key()).isEqualTo("WEB-7");
             assertThat(brief.issue().title()).isEqualTo("Issue 7");
             assertThat(brief.issue().description()).isEqualTo("Description 7");
             assertThat(brief.comments()).singleElement().satisfies(comment -> {

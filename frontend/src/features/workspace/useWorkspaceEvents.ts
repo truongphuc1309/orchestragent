@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { connectEventStream } from '@/shared/api/eventStream'
 import { inboxKeys } from '@/features/inbox/hooks'
 import { issueKeys } from '@/features/issue/hooks'
+import { projectKeys } from '@/features/project/hooks'
 import { taskKeys } from '@/features/task/hooks'
 import { usageKeys } from '@/features/usage/hooks'
 import { queryKeys } from './hooks'
@@ -15,6 +16,7 @@ import { queryKeys } from './hooks'
  */
 const issueEvent = z.object({ issueId: z.uuid() })
 const taskEvent = z.object({ issueId: z.uuid(), taskId: z.uuid() })
+const projectEvent = z.object({ projectId: z.uuid() })
 const EVENT_NAMES = [
   'issue.created',
   'issue.updated',
@@ -23,6 +25,7 @@ const EVENT_NAMES = [
   'task.updated',
   'task.message',
   'inbox.updated',
+  'project.updated',
 ] as const
 
 /**
@@ -68,6 +71,12 @@ export function applyWorkspaceEvent(queryClient: QueryClient, workspaceId: strin
     case 'inbox.updated':
       // My inbox changed: the list and the badge.
       void queryClient.invalidateQueries({ queryKey: inboxKeys.all(workspaceId) })
+      break
+    case 'project.updated':
+      // A project was created, renamed, archived or restored: the project lists, pages and pickers.
+      if (projectEvent.safeParse(data).success) {
+        void queryClient.invalidateQueries({ queryKey: projectKeys.all(workspaceId) })
+      }
       break
   }
 }

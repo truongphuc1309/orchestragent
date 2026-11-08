@@ -1,6 +1,8 @@
 import { ChevronLeft } from 'lucide-react'
 import { Link, useParams } from 'react-router'
 import { toast } from 'sonner'
+import { useProjects } from '@/features/project/hooks'
+import { ISSUE_KEY_PATTERN } from '@/features/project/schemas'
 import { useWorkspace } from '@/features/workspace/workspaceContext'
 import { ApiError, messageOf } from '@/shared/api/errors'
 import { Button } from '@/shared/ui/button'
@@ -13,14 +15,15 @@ import { InlineTitle } from '../components/InlineTitle'
 import { IssueProperties } from '../components/IssueProperties'
 import { ReviewBar } from '../components/ReviewBar'
 import { useIssue, useUpdateIssue } from '../hooks'
-import { issueKey } from '../key'
 
 /** One issue: editable title and description, the properties panel and the comment timeline. */
 export function IssueDetailPage() {
   const workspace = useWorkspace()
-  const { number: rawNumber } = useParams()
-  const number = /^\d+$/.test(rawNumber ?? '') ? Number(rawNumber) : null
-  const issue = useIssue(workspace.id, number)
+  const { issueKey: rawKey } = useParams()
+  const key = rawKey !== undefined && ISSUE_KEY_PATTERN.test(rawKey) ? rawKey : null
+  const issue = useIssue(workspace.id, key)
+  // Archived projects too: an issue of an archived project still shows where it belongs.
+  const projects = useProjects(workspace.id, true)
   const update = useUpdateIssue(workspace.id)
   const back = (
     <Link to={`/w/${workspace.slug}/issues`} className="flex items-center gap-1 text-sm">
@@ -29,7 +32,7 @@ export function IssueDetailPage() {
     </Link>
   )
 
-  if (number === null || (issue.isError && issue.error instanceof ApiError && issue.error.status === 404)) {
+  if (key === null || (issue.isError && issue.error instanceof ApiError && issue.error.status === 404)) {
     return (
       <div className="flex flex-col gap-2">
         {back}
@@ -63,6 +66,7 @@ export function IssueDetailPage() {
   }
 
   const data = issue.data
+  const project = projects.data?.find((candidate) => candidate.id === data.projectId)
   const save = (changes: { title?: string; description?: string }, fallback: string) =>
     update.mutate({ issueId: data.id, changes }, { onError: (error) => toast.error(messageOf(error, fallback)) })
 
@@ -72,7 +76,17 @@ export function IssueDetailPage() {
       <div className="flex gap-8">
         <div className="flex min-w-0 flex-1 flex-col gap-6">
           <div className="flex flex-col gap-1">
-            <p className="px-2 text-sm text-muted-foreground">{issueKey(workspace.slug, data.number)}</p>
+            <p className="flex items-center gap-1 px-2 text-sm text-muted-foreground">
+              {project && (
+                <>
+                  <Link to={`/w/${workspace.slug}/projects/${project.key}`} className="text-muted-foreground">
+                    {project.name}
+                  </Link>
+                  <span aria-hidden="true">/</span>
+                </>
+              )}
+              <span>{data.key}</span>
+            </p>
             <InlineTitle title={data.title} onSave={(title) => save({ title }, 'Could not save the title.')} />
           </div>
           <section aria-labelledby="description-heading" className="flex flex-col gap-1">

@@ -116,7 +116,7 @@ public class NotificationRules {
                 recipient,
                 type,
                 issue.id(),
-                issue.number(),
+                issue.key(),
                 issue.title(),
                 actor,
                 detail,

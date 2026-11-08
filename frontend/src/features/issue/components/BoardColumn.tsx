@@ -13,7 +13,7 @@ interface Props {
   status: Status
   issues: Issue[]
   workspaceSlug: string
-  onCreate: (status: Status) => void
+  onCreate?: (status: Status) => void
 }
 
 /** One status of the board: a heading with the count, and the cards from top to bottom. */
@@ -31,19 +31,21 @@ export function BoardColumn({ status, issues, workspaceSlug, onCreate }: Props) 
           {issues.length}
         </span>
         <span className="flex-1" />
-        <Button
-          variant="ghost"
-          size="icon"
-          aria-label={`Create issue in ${STATUS_LABEL[status]}`}
-          onClick={() => onCreate(status)}
-        >
-          <Plus />
-        </Button>
+        {onCreate && (
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label={`Create issue in ${STATUS_LABEL[status]}`}
+            onClick={() => onCreate(status)}
+          >
+            <Plus />
+          </Button>
+        )}
       </header>
       <SortableContext items={issues.map((issue) => issue.id)} strategy={verticalListSortingStrategy}>
         <ul ref={setNodeRef} className="flex min-h-16 flex-1 flex-col gap-2 p-0">
           {issues.map((issue) => (
-            <SortableIssueCard key={issue.id} issue={issue} workspaceSlug={workspaceSlug} />
+            <SortableIssueCard key={issue.id} issue={issue} status={status} workspaceSlug={workspaceSlug} />
           ))}
         </ul>
       </SortableContext>

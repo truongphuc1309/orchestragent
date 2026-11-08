@@ -9,11 +9,15 @@ import com.orchestragent.issue.domain.ActorType;
 import com.orchestragent.issue.domain.Issue;
 import com.orchestragent.issue.domain.IssueFilter;
 import com.orchestragent.issue.domain.IssueId;
+import com.orchestragent.issue.domain.IssueKey;
 import com.orchestragent.issue.domain.IssueList;
 import com.orchestragent.issue.domain.IssueNumbers;
 import com.orchestragent.issue.domain.IssueRepository;
 import com.orchestragent.issue.domain.Positions;
 import com.orchestragent.issue.domain.Priority;
+import com.orchestragent.issue.domain.Project;
+import com.orchestragent.issue.domain.ProjectId;
+import com.orchestragent.issue.domain.ProjectRepository;
 import com.orchestragent.issue.domain.Status;
 import com.orchestragent.shared.error.ConflictException;
 import com.orchestragent.shared.error.ForbiddenException;
@@ -36,7 +40,12 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Creating, editing, ordering and deleting issues. Every method first checks that the caller belongs to the
- * workspace (a non-member gets "not found"), and every query is limited to that workspace.
+ * workspace (a non-member gets "not found"), and every query is limited to that workspace. An issue is created
+ * in an active project of the workspace and is numbered in that project ({@code WEB-1}, {@code WEB-2}...).
+ *
+ * <p>Board order ({@code position}) is kept per workspace and status, across projects: the board of one project
+ * shows a filtered part of each column, and placing an issue between two neighbours of that view keeps it
+ * between them in the full column too.
  */
 @Service
 public class IssueService {
@@ -45,6 +54,7 @@ public class IssueService {
     public static final int MAX_LIST_LIMIT = 1000;
 
     private final IssueRepository issues;
+    private final ProjectRepository projects;
     private final IssueNumbers numbers;
     private final WorkspaceAccess access;
     private final AgentDirectory agents;
@@ -54,6 +64,7 @@ public class IssueService {
 
     IssueService(
             IssueRepository issues,
+            ProjectRepository projects,
             IssueNumbers numbers,
             WorkspaceAccess access,
             AgentDirectory agents,
@@ -61,6 +72,7 @@ public class IssueService {
             IssueEvents events,
             Clock clock) {
         this.issues = issues;
+        this.projects = projects;
         this.numbers = numbers;
         this.access = access;
         this.agents = agents;
@@ -69,8 +81,9 @@ public class IssueService {
         this.clock = clock;
     }
 
-    /** What to put in a new issue. Null status and priority mean the defaults (todo, none). */
-    public record CreateIssue(String title, String description, Status status, Priority priority, Actor assignee) {
+    /** What to put in a new issue. The project is required; null status and priority mean the defaults (todo, none). */
+    public record CreateIssue(
+            UUID projectId, String title, String description, Status status, Priority priority, Actor assignee) {
     }
 
     /** Fields to change; null means "leave as it is". The assignee has its own call. */
@@ -82,11 +95,15 @@ public class IssueService {
         access.requireMember(workspaceId, userId);
         Status status = command.status() == null ? Status.TODO : command.status();
         Priority priority = command.priority() == null ? Priority.NONE : command.priority();
+        // Everything is checked before a number is taken, so a refused issue leaves no gap in the numbering.
+        Project project = activeProject(workspaceId, command.projectId());
+        Issue.validTitle(command.title());
+        Issue.validDescription(command.description());
         requireAssignable(workspaceId, command.assignee());
 
         Issue issue = Issue.create(
-                workspaceId,
-                numbers.next(workspaceId),
+                project,
+                numbers.next(workspaceId, project.id()).orElseThrow(IssueService::projectArchived),
                 command.title(),
                 command.description(),
                 status,
@@ -110,10 +127,13 @@ public class IssueService {
         return view(load(workspaceId, issueId));
     }
 
+    /** Looks an issue up by its key, {@code WEB-12}. A key that is not well formed is simply not found. */
     @Transactional(readOnly = true)
-    public IssueView getByNumber(UUID userId, UUID workspaceId, int number) {
+    public IssueView getByKey(UUID userId, UUID workspaceId, String key) {
         access.requireMember(workspaceId, userId);
-        return view(issues.findByNumber(workspaceId, number).orElseThrow(IssueService::notFound));
+        IssueKey parsed = IssueKey.parse(key).orElseThrow(IssueService::notFound);
+        Project project = projects.findByKey(workspaceId, parsed.project()).orElseThrow(IssueService::notFound);
+        return view(issues.findByNumber(workspaceId, project.id(), parsed.number()).orElseThrow(IssueService::notFound));
     }
 
     @Transactional(readOnly = true)
@@ -275,6 +295,17 @@ public class IssueService {
 
     // ---- helpers -----------------------------------------------------------------------------------------
 
+    private Project activeProject(UUID workspaceId, UUID projectId) {
+        if (projectId == null) {
+            throw new ValidationException("issue.project_required", "Choose the project of the issue");
+        }
+        Project project = projects.find(workspaceId, new ProjectId(projectId))
+                .orElseThrow(() -> new ValidationException(
+                        "issue.invalid_project", "The project does not exist in this workspace"));
+        project.requireActive();
+        return project;
+    }
+
     private void requireAssignable(UUID workspaceId, Actor assignee) {
         if (assignee == null) {
             return;
@@ -299,6 +330,8 @@ public class IssueService {
         return new IssueView(
                 issue.id().value(),
                 issue.workspaceId(),
+                issue.projectId().value(),
+                issue.key().toString(),
                 issue.number(),
                 issue.title(),
                 issue.description(),
@@ -322,6 +355,11 @@ public class IssueService {
 
     static NotFoundException notFound() {
         return new NotFoundException("issue.not_found", "Issue not found");
+    }
+
+    private static ConflictException projectArchived() {
+        return new ConflictException(
+                "project.archived", "This project is archived. Restore it before changing it or adding issues.");
     }
 
     private static ConflictException staleMove() {

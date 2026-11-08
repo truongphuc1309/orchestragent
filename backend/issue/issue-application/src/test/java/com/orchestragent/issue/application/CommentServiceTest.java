@@ -10,6 +10,7 @@ import com.orchestragent.issue.application.Fakes.FakeUsers;
 import com.orchestragent.issue.application.Fakes.InMemoryComments;
 import com.orchestragent.issue.application.Fakes.InMemoryIssues;
 import com.orchestragent.issue.application.Fakes.InMemoryNumbers;
+import com.orchestragent.issue.application.Fakes.InMemoryProjects;
 import com.orchestragent.issue.application.IssueService.CreateIssue;
 import com.orchestragent.issue.application.Views.CommentView;
 import com.orchestragent.issue.application.Views.IssueView;
@@ -26,6 +27,8 @@ import org.junit.jupiter.api.Test;
 class CommentServiceTest {
 
     private final InMemoryIssues issues = new InMemoryIssues();
+
+    private final InMemoryProjects projects = new InMemoryProjects();
     private final InMemoryComments comments = new InMemoryComments();
     private final FakeAccess access = new FakeAccess();
     private final FakeUsers users = new FakeUsers();
@@ -34,7 +37,7 @@ class CommentServiceTest {
     private final IssueEvents events = new IssueEvents(published::add, Fakes.clock());
     private final ActorNames names = new ActorNames(users, agents);
     private final IssueService issueService =
-            new IssueService(issues, new InMemoryNumbers(), access, agents, names, events, Fakes.clock());
+            new IssueService(issues, projects, new InMemoryNumbers(projects), access, agents, names, events, Fakes.clock());
     private final CommentService service = new CommentService(comments, issues, access, names, events, Fakes.clock());
 
     private final UserView member = users.add("Mia");
@@ -48,7 +51,7 @@ class CommentServiceTest {
         access.join(workspace, member.id(), WorkspaceRole.MEMBER);
         access.join(workspace, colleague.id(), WorkspaceRole.MEMBER);
         access.join(otherWorkspace, outsider.id(), WorkspaceRole.OWNER);
-        issue = issueService.create(member.id(), workspace, new CreateIssue("Fix", null, null, null, null));
+        issue = issueService.create(member.id(), workspace, new CreateIssue(projects.defaultIn(workspace), "Fix", null, null, null, null));
         published.clear();
     }
 
@@ -83,7 +86,7 @@ class CommentServiceTest {
 
     @Test
     void commentsOfOtherIssuesAreNotListed() {
-        IssueView another = issueService.create(member.id(), workspace, new CreateIssue("Other", null, null, null, null));
+        IssueView another = issueService.create(member.id(), workspace, new CreateIssue(projects.defaultIn(workspace), "Other", null, null, null, null));
         service.add(member.id(), workspace, issue.id(), "on the first");
         service.add(member.id(), workspace, another.id(), "on the other");
 
@@ -131,7 +134,7 @@ class CommentServiceTest {
     @Test
     void anIssueOfAnotherWorkspaceCannotBeCommentedOn() {
         access.join(otherWorkspace, member.id(), WorkspaceRole.MEMBER);
-        IssueView foreign = issueService.create(member.id(), otherWorkspace, new CreateIssue("Elsewhere", null, null, null, null));
+        IssueView foreign = issueService.create(member.id(), otherWorkspace, new CreateIssue(projects.defaultIn(otherWorkspace), "Elsewhere", null, null, null, null));
 
         assertThatThrownBy(() -> service.add(member.id(), workspace, foreign.id(), "wrong place"))
                 .isInstanceOf(NotFoundException.class);

@@ -67,12 +67,14 @@ crosses schemas; a test enforces this.
 ### Issues, board and comments (step 5)
 
 Every workspace member can create, edit, assign, move and comment on issues; only the creator, admins and owners
-delete one. Issue numbers (`ORC-12`; the prefix comes from the workspace slug) count up per workspace. Status is one of
+delete one. Every issue belongs to a project and is named by the project key and a number counted per project
+(`WEB-12`, see step 13). Status is one of
 `backlog, todo, in_progress, in_review, done, blocked, cancelled` (any status may follow any other); priority is one of
 `none, low, medium, high, urgent`. Issues can only be assigned to members until agents arrive in step 7.
 
-REST under `/api/workspaces/{id}/issues`: `GET` (filters `status`, `priority`, `assignee`, `unassigned`, `limit`; returns
-`{items, total}`, newest first, at most 1000), `POST`, `GET /{issueId}`, `GET /number/{n}`, `PATCH /{issueId}`,
+REST under `/api/workspaces/{id}/issues`: `GET` (filters `project`, `status`, `priority`, `assignee`, `unassigned`, `limit`;
+returns `{items, total}`, newest first, at most 1000), `POST` (`projectId` required), `GET /{issueId}`, `GET /key/{key}`
+(`WEB-12`), `PATCH /{issueId}`,
 `PUT /{issueId}/assignee`, `POST /{issueId}/move` (`{status, aboveId, belowId}`: the server computes the position between
 the two neighbours and renumbers a column when they get too close; a stale drop answers `409 issue.stale_move`),
 `DELETE /{issueId}`, and `GET|POST /{issueId}/comments`. Other contexts hear about changes through the integration
@@ -182,7 +184,8 @@ On Windows run `orchestragent-daemon.bat` from the same folder. In development g
   the provider, sends the log in batches every second and checks every 5 seconds whether the task was cancelled.
   The result is reported with retries and backoff; all log lines are sent before it. Ctrl+C stops claiming, waits up to
   30 seconds for running tasks, stops the rest (reported as failed, `daemon_stopped`) and takes the runtimes offline.
-- Task folders live under `~/.orchestragent/workspaces/<workspaceId>/<issueNumber>-<last 8 characters of the task ID>/`. A run that
+- Task folders live under `~/.orchestragent/workspaces/<workspaceId>/<issue key>-<last 8 characters of the task ID>/`
+  (for example `WEB-12-1a2b3c4d`; the plain issue number when a server older than projects sends no key). A run that
   continues earlier work gets the earlier folder back, and resumes the earlier session only there (AI tools keep
   sessions per folder). A folder sent by the server is used only when it is inside the task's workspace folder.
 - `ORCHESTRAGENT_HOME` moves `~/.orchestragent` elsewhere (tests and demos).
@@ -257,7 +260,7 @@ It refreshes when a run changes.
 | An agent failed on an issue | the person who created the issue, with the reason |
 | The issue was deleted | its notifications go away |
 
-People who are no longer members are not told. A notification keeps a copy of the issue number and title and of who
+People who are no longer members are not told. A notification keeps a copy of the issue key and title and of who
 did it. Events are delivered at least once, so a notification remembers its event: one event makes at most one
 notification per person (a unique key in the database). `GET /api/workspaces/{id}/inbox` returns the newest 100 and the
 unread count, `GET .../inbox/unread-count` only the count (the badge next to **Inbox** in the navigation),
@@ -282,14 +285,15 @@ while rendering shows a "Something went wrong" page (`RouteErrorPage`) instead o
 to the browser console.
 
 **Seed data.** With the `dev` profile, an empty database gets a demo user and a workspace on the first start
-(`DevDataSeeder`): sign in as `demo@example.com` with the fixed `DEV_LOGIN_CODE`. The workspace "Demo" has eight
-issues in every status and a few comments. It runs once (nothing happens when the demo user exists) and never stops
+(`DevDataSeeder`): sign in as `demo@example.com` with the fixed `DEV_LOGIN_CODE`. The workspace "Demo" has two
+projects ("Web app" `WEB` and "Backend" `API`), eight issues in every status spread over them, and a few comments. It runs once (nothing happens when the demo user exists) and never stops
 the application if it fails; turn it off with `--orchestragent.dev-seed.enabled=false`. No agent is seeded, because
 an agent needs a runtime and a runtime exists only after a daemon on a computer registers: create the first agent in
 the web app after `orchestragent-daemon start` (see the demo script below).
 
 **End-to-end test** (`e2e/`, Playwright). One story, in a real browser, against the real thing: sign in with the dev
-code, create a workspace, connect a daemon (mock provider), create an agent, create an issue assigned to it, wait for
+code, create a workspace, create a project (key `E2E`), connect a daemon (mock provider), create an agent, create an
+issue assigned to it from the Issues page (it becomes `E2E-1`), wait for
 "In review", request changes, wait for "In review" again, approve, see "Done", and find the notification in the inbox.
 No AI model is called.
 
@@ -311,6 +315,34 @@ pnpm -C e2e test                                      # builds the jar and the d
   the workspace instead of in the global setup.
 - Logs of the backend, Vite and daemon are in `e2e/test-results/logs/`; a failed run keeps a screenshot and a trace
   (`pnpm -C e2e exec playwright show-trace <trace.zip>`).
+
+### Projects (step 13)
+
+A workspace has projects, and every issue is created in one. People choose the project **key** (2 to 10 letters and
+digits, starting with a letter, stored upper case, unique in the workspace including archived projects); issues are
+numbered per project and named by the key and the number, `WEB-12`. The key never changes, so an issue key copied
+into a notification, an agent prompt or a work folder stays true; the name and description can be edited. Any member
+creates projects; the creator, admins and owners edit, archive and restore them. An archived project keeps its issues
+(they stay visible and editable) but takes no new ones, and its key is never reused.
+
+REST under `/api/workspaces/{id}/projects`: `GET` (`includeArchived=true` for all), `POST {key, name, description}`
+(`409 project.key_taken`, `400 project.invalid_key`), `GET /{projectId}`, `GET /key/{key}`, `PATCH /{projectId}` (name and
+description), `POST /{projectId}/archive`, `POST /{projectId}/restore`. Changes reach open browsers as the live event
+`project.updated`.
+
+The web app has a **Projects** page (create, edit, archive, restore, show archived), a page per project with the board
+and list of its issues (`/w/{slug}/projects/{KEY}`), the active projects under "Projects" in the navigation, a
+**Project** filter on the Issues page (which shows the issues of every project together), and a required Project field
+in the create dialog (it starts in the project of the page, or the one used last). Issue pages are at
+`/w/{slug}/issues/{KEY-n}`.
+
+Projects live in the issue context (table `issue.projects`): the number of a new issue is taken from its project in
+the same transaction, with one `UPDATE ... RETURNING` that also refuses an archived project. Issues keep a copy of the
+project key, held true by a foreign key on `(workspace_id, project_id, project_key)`. Board order stays per workspace
+and status, so a project's board is a filtered view of the same columns. Data from before projects was moved by the
+migration into one project per workspace, "General" with the key `GEN` (issue numbers kept, so `ACM-7` became `GEN-7`),
+and old notifications were given the matching `GEN-n` keys. A new workspace starts without projects; its Issues page
+asks for one first.
 
 ### Frontend (step 3)
 
@@ -432,8 +464,9 @@ About ten minutes, with the mock provider (no AI model, no cost). Start with `do
 1. Backend: `JWT_SECRET=<32+ random bytes> DEV_LOGIN_CODE=123456 ./gradlew :backend:app:bootRun --args='--spring.profiles.active=dev'`.
    The log says that seed data was created.
 2. Frontend: `pnpm -C frontend dev`, open http://localhost:5173, sign in as `demo@example.com` with the code `123456`.
-3. Look around the seeded "Demo" workspace: the board (drag a card), the list and its filters, an issue with its
-   comments, Members.
+3. Look around the seeded "Demo" workspace: Issues shows the issues of both projects (filter by project, drag a
+   card, switch to the list), Projects lists `WEB` and `API` (create one with your own key, open its board), an issue
+   such as `WEB-1` with its comments, Members.
 4. Settings > API tokens: create a token and copy it.
 5. Daemon: `./gradlew :daemon:daemon-cli:installDist`, then in `daemon/daemon-cli/build/install/orchestragent-daemon/bin`
    run `orchestragent-daemon login --server http://localhost:8080 --token` (paste the token), then

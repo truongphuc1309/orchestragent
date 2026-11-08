@@ -43,7 +43,8 @@ public final class TaskViews {
     public record AgentBrief(UUID id, String name, String instructions, String model) {
     }
 
-    public record IssueBrief(UUID id, int number, String title, String description) {
+    /** {@code key} is the issue's human-friendly name, {@code WEB-12}. */
+    public record IssueBrief(UUID id, String key, int number, String title, String description) {
     }
 
     /** {@code authorType} is member, agent or system. */

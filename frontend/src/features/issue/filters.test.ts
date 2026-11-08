@@ -5,11 +5,12 @@ const KEY = 'orchestragent.issueView'
 
 describe('issue view store', () => {
   beforeEach(() => {
-    useIssueViewStore.setState({ view: 'board', filtersByWorkspace: {} })
+    useIssueViewStore.setState({ view: 'board', filtersByWorkspace: {}, lastProjectByWorkspace: {} })
   })
 
   it('knows when a filter is set', () => {
     expect(hasFilters(NO_FILTERS)).toBe(false)
+    expect(hasFilters({ ...NO_FILTERS, projects: ['p'] })).toBe(true)
     expect(hasFilters({ ...NO_FILTERS, statuses: ['todo'] })).toBe(true)
     expect(hasFilters({ ...NO_FILTERS, priorities: ['high'] })).toBe(true)
     expect(hasFilters({ ...NO_FILTERS, assignees: ['x'] })).toBe(true)
@@ -46,6 +47,35 @@ describe('issue view store', () => {
     expect(stored).toMatchObject({
       state: { view: 'list', filtersByWorkspace: { 'ws-1': { unassigned: true } } },
     })
+  })
+
+  it('restores filters stored before projects existed, as filters over every project', async () => {
+    localStorage.setItem(
+      KEY,
+      JSON.stringify({
+        state: {
+          view: 'list',
+          filtersByWorkspace: { 'ws-1': { statuses: ['blocked'], priorities: [], assignees: [], unassigned: false } },
+        },
+        version: 0,
+      }),
+    )
+
+    await useIssueViewStore.persist.rehydrate()
+
+    const state = useIssueViewStore.getState()
+    expect(state.view).toBe('list')
+    expect(state.filtersByWorkspace['ws-1']).toEqual({ ...NO_FILTERS, statuses: ['blocked'] })
+    expect(state.lastProjectByWorkspace).toEqual({})
+  })
+
+  it('remembers the project of the last new issue per workspace', () => {
+    const { setLastProject } = useIssueViewStore.getState()
+    setLastProject('ws-1', 'p-1')
+    setLastProject('ws-2', 'p-2')
+    setLastProject('ws-1', 'p-3')
+
+    expect(useIssueViewStore.getState().lastProjectByWorkspace).toEqual({ 'ws-1': 'p-3', 'ws-2': 'p-2' })
   })
 
   it('restores what was stored', async () => {

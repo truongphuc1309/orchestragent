@@ -35,7 +35,7 @@ class InboxServiceTest {
 
     private Notification give(UUID workspaceId, UUID recipient, int number) {
         Notification n = Notification.create(new NotificationId(UUID.randomUUID()), workspaceId, recipient,
-                NotificationType.ISSUE_ASSIGNED, UUID.randomUUID(), number, "Issue " + number, "Olivia", null,
+                NotificationType.ISSUE_ASSIGNED, UUID.randomUUID(), "WEB-" + number, "Issue " + number, "Olivia", null,
                 UUID.randomUUID(), clock.instant());
         notifications.addOnce(n);
         clock.advance(Duration.ofMinutes(1));
@@ -51,7 +51,7 @@ class InboxServiceTest {
 
         Inbox mine = inbox.inbox(mia, workspace);
 
-        assertThat(mine.notifications()).extracting(NotificationView::issueNumber).containsExactly(4, 1);
+        assertThat(mine.notifications()).extracting(NotificationView::issueKey).containsExactly("WEB-4", "WEB-1");
         assertThat(mine.unreadCount()).isEqualTo(2);
     }
 

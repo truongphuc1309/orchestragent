@@ -5,9 +5,12 @@ import com.orchestragent.issue.domain.ActorType;
 import com.orchestragent.issue.domain.Issue;
 import com.orchestragent.issue.domain.IssueFilter;
 import com.orchestragent.issue.domain.IssueId;
+import com.orchestragent.issue.domain.IssueKey;
 import com.orchestragent.issue.domain.IssueList;
 import com.orchestragent.issue.domain.IssueRepository;
 import com.orchestragent.issue.domain.Priority;
+import com.orchestragent.issue.domain.ProjectId;
+import com.orchestragent.issue.domain.ProjectKey;
 import com.orchestragent.issue.domain.Status;
 import jakarta.persistence.criteria.Predicate;
 import java.util.ArrayList;
@@ -23,6 +26,10 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 class IssueRepositoryAdapter implements IssueRepository {
+
+    /** Newest first. Numbers are per project, so the creation time orders issues of different projects. */
+    private static final Sort NEWEST_FIRST =
+            Sort.by(Sort.Direction.DESC, "createdAt").and(Sort.by(Sort.Direction.DESC, "id"));
 
     private final IssueJpaRepository jpa;
 
@@ -45,6 +52,8 @@ class IssueRepositoryAdapter implements IssueRepository {
                 () -> jpa.save(new IssueEntity(
                         issue.id().value(),
                         issue.workspaceId(),
+                        issue.projectId().value(),
+                        issue.key().project().value(),
                         issue.number(),
                         issue.title(),
                         issue.description(),
@@ -70,20 +79,21 @@ class IssueRepositoryAdapter implements IssueRepository {
     }
 
     @Override
-    public Optional<Issue> findByNumber(UUID workspaceId, int number) {
-        return jpa.findByWorkspaceIdAndNumber(workspaceId, number).map(IssueRepositoryAdapter::toDomain);
+    public Optional<Issue> findByNumber(UUID workspaceId, ProjectId projectId, int number) {
+        return jpa.findByWorkspaceIdAndProjectIdAndNumber(workspaceId, projectId.value(), number)
+                .map(IssueRepositoryAdapter::toDomain);
     }
 
     @Override
     public IssueList list(UUID workspaceId, IssueFilter filter, int limit) {
         Page<IssueEntity> page =
-                jpa.findAll(matching(workspaceId, filter), PageRequest.of(0, limit, Sort.by(Sort.Direction.DESC, "number")));
+                jpa.findAll(matching(workspaceId, filter), PageRequest.of(0, limit, NEWEST_FIRST));
         return new IssueList(page.getContent().stream().map(IssueRepositoryAdapter::toDomain).toList(), page.getTotalElements());
     }
 
     @Override
     public List<Issue> findByStatus(UUID workspaceId, Status status) {
-        return jpa.findByWorkspaceIdAndStatusOrderByPositionAscNumberAsc(workspaceId, status.code()).stream()
+        return jpa.findByWorkspaceIdAndStatusOrderByPositionAscCreatedAtAsc(workspaceId, status.code()).stream()
                 .map(IssueRepositoryAdapter::toDomain)
                 .toList();
     }
@@ -99,6 +109,9 @@ class IssueRepositoryAdapter implements IssueRepository {
         return (root, query, builder) -> {
             List<Predicate> all = new ArrayList<>();
             all.add(builder.equal(root.get("workspaceId"), workspaceId));
+            if (!filter.projectIds().isEmpty()) {
+                all.add(root.get("projectId").in(filter.projectIds()));
+            }
             if (!filter.statuses().isEmpty()) {
                 all.add(root.get("status").in(filter.statuses().stream().map(Status::code).toList()));
             }
@@ -130,7 +143,8 @@ class IssueRepositoryAdapter implements IssueRepository {
         return new Issue(
                 new IssueId(entity.getId()),
                 entity.getWorkspaceId(),
-                entity.getNumber(),
+                new ProjectId(entity.getProjectId()),
+                new IssueKey(new ProjectKey(entity.getProjectKey()), entity.getNumber()),
                 entity.getTitle(),
                 entity.getDescription(),
                 Status.fromCode(entity.getStatus()),

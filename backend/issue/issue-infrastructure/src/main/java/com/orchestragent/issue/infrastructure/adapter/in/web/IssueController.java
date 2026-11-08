@@ -47,17 +47,19 @@ class IssueController {
         this.review = review;
     }
 
-    /** Filters: repeat or comma-separate {@code status}, {@code priority} and {@code assignee}. */
+    /** Filters: repeat or comma-separate {@code project}, {@code status}, {@code priority} and {@code assignee}. */
     @GetMapping
     IssueListResponse list(
             CurrentUser user,
             @PathVariable UUID workspaceId,
+            @RequestParam(required = false) List<UUID> project,
             @RequestParam(required = false) List<String> status,
             @RequestParam(required = false) List<String> priority,
             @RequestParam(required = false) List<UUID> assignee,
             @RequestParam(defaultValue = "false") boolean unassigned,
             @RequestParam(defaultValue = "" + DEFAULT_LIMIT) int limit) {
         IssueFilter filter = new IssueFilter(
+                project == null ? Set.of() : new HashSet<>(project),
                 parse(status, Status::fromCode),
                 parse(priority, Priority::fromCode),
                 assignee == null ? Set.of() : new HashSet<>(assignee),
@@ -69,6 +71,7 @@ class IssueController {
     ResponseEntity<IssueResponse> create(
             CurrentUser user, @PathVariable UUID workspaceId, @Valid @RequestBody CreateIssueRequest request) {
         CreateIssue command = new CreateIssue(
+                request.projectId(),
                 request.title(),
                 request.description(),
                 request.status() == null ? null : Status.fromCode(request.status()),
@@ -83,9 +86,10 @@ class IssueController {
         return IssueResponse.from(issues.get(user.id(), workspaceId, issueId));
     }
 
-    @GetMapping("/number/{number}")
-    IssueResponse getByNumber(CurrentUser user, @PathVariable UUID workspaceId, @PathVariable int number) {
-        return IssueResponse.from(issues.getByNumber(user.id(), workspaceId, number));
+    /** By the human-friendly key, {@code WEB-12}. */
+    @GetMapping("/key/{key}")
+    IssueResponse getByKey(CurrentUser user, @PathVariable UUID workspaceId, @PathVariable String key) {
+        return IssueResponse.from(issues.getByKey(user.id(), workspaceId, key));
     }
 
     @PatchMapping("/{issueId}")

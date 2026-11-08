@@ -34,6 +34,13 @@ class DevDataSeederTest extends IntegrationTest {
                 .andReturn().getResponse().getContentAsString();
         List<String> statuses = JsonPath.read(issues, "$.items[*].status");
         assertThat(statuses).hasSize(8).contains("backlog", "todo", "in_progress", "in_review", "done", "blocked", "cancelled");
+
+        String projects = mvc.perform(get("/api/workspaces/" + workspaceId + "/projects").cookie(session))
+                .andReturn().getResponse().getContentAsString();
+        assertThat(JsonPath.<List<String>>read(projects, "$[*].key"))
+                .containsExactly(DevDataSeeder.API_KEY, DevDataSeeder.WEB_KEY);
+        List<String> keys = JsonPath.read(issues, "$.items[*].key");
+        assertThat(keys).anyMatch(key -> key.startsWith("WEB-")).anyMatch(key -> key.startsWith("API-"));
     }
 
     @Test

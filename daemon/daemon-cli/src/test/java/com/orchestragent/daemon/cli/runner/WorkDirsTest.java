@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.orchestragent.daemon.cli.testing.FakeDaemonApi;
 import com.orchestragent.daemon.protocol.ClaimedTask;
+import com.orchestragent.daemon.protocol.IssueInfo;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
@@ -30,8 +31,30 @@ class WorkDirsTest {
 
         assertThat(dir.reused()).isFalse();
         assertThat(dir.path()).isDirectory();
+        // Named after the issue key since step 13 (it was the bare number before issues were numbered per project).
         assertThat(dir.path()).isEqualTo(home.resolve("workspaces").resolve(task.workspaceId().toString())
-                .resolve("12-" + task.taskId().toString().substring(28)).toAbsolutePath());
+                .resolve("WEB-12-" + task.taskId().toString().substring(28)).toAbsolutePath());
+    }
+
+    @Test
+    void aMissingOrStrangeKeyFallsBackToTheNumber() throws Exception {
+        for (String key : new String[] {null, "", "../../evil", "WEB 12", "a/b"}) {
+            ClaimedTask task = withKey(FakeDaemonApi.task("mock", "T"), key);
+
+            WorkDirs.WorkDir dir = workDirs().prepare(task);
+
+            assertThat(dir.path().getFileName()).as(String.valueOf(key))
+                    .hasToString("12-" + task.taskId().toString().substring(28));
+            assertThat(dir.path().getParent())
+                    .isEqualTo(home.resolve("workspaces").resolve(task.workspaceId().toString()).toAbsolutePath());
+        }
+    }
+
+    private static ClaimedTask withKey(ClaimedTask task, String key) {
+        IssueInfo issue = task.issue();
+        return new ClaimedTask(task.taskId(), task.workspaceId(), task.runtimeId(), task.provider(), task.trigger(),
+                task.attempt(), task.agent(), new IssueInfo(issue.id(), key, issue.number(), issue.title(), issue.description()),
+                task.comments(), task.priorSessionId(), task.priorWorkDir());
     }
 
     @Test

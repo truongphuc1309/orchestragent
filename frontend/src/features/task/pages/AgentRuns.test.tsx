@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { routes } from '@/app/routes'
 import { FakeEventSource } from '@/test/fakeEventSource'
-import { ACME, ADA, issue, issueId, task, taskId, taskMessage } from '@/test/fixtures'
+import { ACM_PROJECT, ACME, ADA, issue, issueId, task, taskId, taskMessage } from '@/test/fixtures'
 import { fakeServer, json, problem, type RecordedRequest } from '@/test/fakeServer'
 import { renderRoutes } from '@/test/render'
 import type { Task, TaskMessage } from '../schemas'
@@ -45,9 +45,10 @@ function handlers(tasks: Task[], extra: Record<string, Handler> = {}) {
     'GET /api/workspaces': () => json(200, [ACME]),
     [`GET ${BASE}/members`]: () => json(200, []),
     [`GET ${BASE}/agents`]: () => json(200, []),
-    [`GET ${BASE}/issues/number/7`]: () => json(200, ISSUE),
+    [`GET ${BASE}/issues/key/ACM-7`]: () => json(200, ISSUE),
     [`GET ${BASE}/issues/${ISSUE.id}/comments`]: () => json(200, []),
     [TASKS]: () => json(200, tasks),
+    [`GET /api/workspaces/${ACME.id}/projects?includeArchived=true`]: () => json(200, [ACM_PROJECT]),
     ...extra,
   }
 }
@@ -57,7 +58,7 @@ function logPath(id: string, after = -1) {
 }
 
 async function openIssue() {
-  const view = renderRoutes(routes, ['/w/acme/issues/7'])
+  const view = renderRoutes(routes, ['/w/acme/issues/ACM-7'])
   await screen.findByRole('heading', { name: 'Fix the login' })
   return view
 }

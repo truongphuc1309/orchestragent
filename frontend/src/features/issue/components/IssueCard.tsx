@@ -2,14 +2,12 @@ import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { Link } from 'react-router'
 import { cn } from '@/shared/lib/utils'
-import { issueKey } from '../key'
-import type { Issue } from '../schemas'
+import type { Issue, Status } from '../schemas'
 import { ActorAvatar } from './ActorAvatar'
 import { PriorityIcon } from './PriorityIcon'
 
 /** What a card shows. Also used for the copy that follows the pointer while dragging. */
 export function IssueCardView({ issue, workspaceSlug, dragging }: { issue: Issue; workspaceSlug: string; dragging?: boolean }) {
-  const key = issueKey(workspaceSlug, issue.number)
   return (
     <div
       className={cn(
@@ -18,7 +16,7 @@ export function IssueCardView({ issue, workspaceSlug, dragging }: { issue: Issue
       )}
     >
       <Link
-        to={`/w/${workspaceSlug}/issues/${issue.number}`}
+        to={`/w/${workspaceSlug}/issues/${issue.key}`}
         className="line-clamp-3 text-sm text-foreground no-underline hover:no-underline"
         draggable={false}
       >
@@ -26,7 +24,7 @@ export function IssueCardView({ issue, workspaceSlug, dragging }: { issue: Issue
       </Link>
       <div className="flex items-center gap-2">
         <PriorityIcon priority={issue.priority} />
-        <span className="text-xs text-muted-foreground">{key}</span>
+        <span className="text-xs text-muted-foreground">{issue.key}</span>
         <span className="flex-1" />
         {issue.assignee && (
           <span title={issue.assignee.name}>
@@ -39,11 +37,14 @@ export function IssueCardView({ issue, workspaceSlug, dragging }: { issue: Issue
   )
 }
 
-/** A card that can be dragged inside its column and into other columns. */
-export function SortableIssueCard({ issue, workspaceSlug }: { issue: Issue; workspaceSlug: string }) {
+/**
+ * A card that can be dragged inside its column and into other columns. {@code status} is the column the card is
+ * shown in: while it is dragged that may already be another column than the issue's status.
+ */
+export function SortableIssueCard({ issue, status, workspaceSlug }: { issue: Issue; status: Status; workspaceSlug: string }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: issue.id,
-    data: { status: issue.status },
+    data: { status },
   })
 
   return (

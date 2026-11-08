@@ -35,7 +35,8 @@ class UsageController {
     record AgentResponse(UUID agentId, String agentName, boolean archived, TotalsResponse totals) {
     }
 
-    record IssueResponse(UUID issueId, Integer number, String title, TotalsResponse totals) {
+    /** {@code key} and {@code title} are null when the issue was deleted since. */
+    record IssueResponse(UUID issueId, String key, String title, TotalsResponse totals) {
     }
 
     /** {@code day} is an ISO date (UTC). */
@@ -59,7 +60,7 @@ class UsageController {
                             .map(a -> new AgentResponse(a.agentId(), a.agentName(), a.archived(), TotalsResponse.from(a.totals())))
                             .toList(),
                     report.topIssues().stream()
-                            .map(i -> new IssueResponse(i.issueId(), i.number(), i.title(), TotalsResponse.from(i.totals())))
+                            .map(i -> new IssueResponse(i.issueId(), i.key(), i.title(), TotalsResponse.from(i.totals())))
                             .toList(),
                     report.byDay().stream()
                             .map(d -> new DayResponse(d.day().toString(), TotalsResponse.from(d.totals())))

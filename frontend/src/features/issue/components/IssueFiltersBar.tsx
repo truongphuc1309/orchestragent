@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { ChevronDown, Sparkles } from 'lucide-react'
 import type { Agent } from '@/features/agent/schemas'
+import type { Project } from '@/features/project/schemas'
 import type { Member } from '@/features/workspace/schemas'
 import { Button } from '@/shared/ui/button'
 import {
@@ -10,7 +11,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/shared/ui/dropdown-menu'
-import { hasFilters, type IssueFilters } from '../filters'
+import { hasFilters, NO_FILTERS, type IssueFilters } from '../filters'
 import { PRIORITIES, PRIORITY_LABEL, STATUSES, STATUS_LABEL } from '../schemas'
 
 function toggle<T>(list: readonly T[], item: T): T[] {
@@ -37,12 +38,31 @@ interface Props {
   onChange: (filters: IssueFilters) => void
   members: readonly Member[]
   agents: readonly Agent[]
+  /** The projects to filter by; without them (a project page) there is no project filter. */
+  projects?: readonly Project[]
 }
 
-/** Status, priority and assignee filters. The choice is kept per workspace by the caller. */
-export function IssueFiltersBar({ filters, onChange, members, agents }: Props) {
+/** Project, status, priority and assignee filters. The choice is kept per workspace by the caller. */
+export function IssueFiltersBar({ filters, onChange, members, agents, projects }: Props) {
   return (
     <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Filters">
+      {projects && (
+        <FilterMenu label="Project" count={filters.projects.length}>
+          {projects.length === 0 && <p className="px-2 py-1.5 text-sm text-muted-foreground">No projects yet</p>}
+          {projects.map((project) => (
+            <DropdownMenuCheckboxItem
+              key={project.id}
+              checked={filters.projects.includes(project.id)}
+              onSelect={(event) => event.preventDefault()}
+              onCheckedChange={() => onChange({ ...filters, projects: toggle(filters.projects, project.id) })}
+            >
+              <span className="text-muted-foreground">{project.key}</span>
+              {project.name}
+              {project.archived && <span className="text-muted-foreground">(archived)</span>}
+            </DropdownMenuCheckboxItem>
+          ))}
+        </FilterMenu>
+      )}
       <FilterMenu label="Status" count={filters.statuses.length}>
         {STATUSES.map((status) => (
           <DropdownMenuCheckboxItem
@@ -99,10 +119,7 @@ export function IssueFiltersBar({ filters, onChange, members, agents }: Props) {
         ))}
       </FilterMenu>
       {hasFilters(filters) && (
-        <Button
-          variant="ghost"
-          onClick={() => onChange({ statuses: [], priorities: [], assignees: [], unassigned: false })}
-        >
+        <Button variant="ghost" onClick={() => onChange(NO_FILTERS)}>
           Clear filters
         </Button>
       )}

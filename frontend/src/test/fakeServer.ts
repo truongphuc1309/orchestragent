@@ -23,20 +23,28 @@ export function noContent(): Response {
 }
 
 /**
- * The one request every workspace page makes in the background: the unread count of the inbox badge in the
- * navigation. Unless a test handles it itself, it is answered with zero, so page tests do not all have to list it.
- * Nothing else has a default.
+ * The two requests every workspace page makes in the background for the navigation: the unread count of the
+ * inbox badge, and the active projects listed under "Projects". Unless a test handles them itself, they are
+ * answered with zero and no projects, so page tests do not all have to list them. Nothing else has a default (the
+ * project list with archived projects, which issue pages ask for, is not one of them).
  */
 const UNREAD_COUNT = /^\/api\/workspaces\/[^/]+\/inbox\/unread-count$/
+const ACTIVE_PROJECTS = /^\/api\/workspaces\/[^/]+\/projects$/
 
 function ambientHandler(method: string, path: string): Handler | undefined {
-  return method === 'GET' && UNREAD_COUNT.test(path) ? () => json(200, { unreadCount: 0 }) : undefined
+  if (method !== 'GET') {
+    return undefined
+  }
+  if (UNREAD_COUNT.test(path)) {
+    return () => json(200, { unreadCount: 0 })
+  }
+  return ACTIVE_PROJECTS.test(path) ? () => json(200, []) : undefined
 }
 
 /**
  * Replaces `fetch` with a table of handlers keyed by "METHOD /path". A request nobody handles fails the
- * test loudly, so tests can never silently talk to a real server (the inbox badge's unread count is the only
- * exception, see {@link ambientHandler}).
+ * test loudly, so tests can never silently talk to a real server (the navigation's background requests are the
+ * only exception, see {@link ambientHandler}).
  */
 export function fakeServer(handlers: Record<string, Handler>) {
   const requests: RecordedRequest[] = []

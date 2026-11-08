@@ -6,6 +6,8 @@ import { RuntimesPage } from '@/features/agent/pages/RuntimesPage'
 import { InboxPage } from '@/features/inbox/pages/InboxPage'
 import { IssueDetailPage } from '@/features/issue/pages/IssueDetailPage'
 import { IssuesPage } from '@/features/issue/pages/IssuesPage'
+import { ProjectIssuesPage } from '@/features/project/pages/ProjectIssuesPage'
+import { ProjectsPage } from '@/features/project/pages/ProjectsPage'
 import { TokensPage } from '@/features/tokens/pages/TokensPage'
 import { UsagePage } from '@/features/usage/pages/UsagePage'
 import { AcceptInvitationPage } from '@/features/workspace/pages/AcceptInvitationPage'
@@ -34,7 +36,9 @@ export const routes: RouteObject[] = [
           { index: true, element: <WorkspaceHomePage /> },
           { path: 'inbox', element: <InboxPage /> },
           { path: 'issues', element: <IssuesPage /> },
-          { path: 'issues/:number', element: <IssueDetailPage /> },
+          { path: 'issues/:issueKey', element: <IssueDetailPage /> },
+          { path: 'projects', element: <ProjectsPage /> },
+          { path: 'projects/:projectKey', element: <ProjectIssuesPage /> },
           { path: 'agents', element: <AgentsPage /> },
           { path: 'runtimes', element: <RuntimesPage /> },
           { path: 'usage', element: <UsagePage /> },

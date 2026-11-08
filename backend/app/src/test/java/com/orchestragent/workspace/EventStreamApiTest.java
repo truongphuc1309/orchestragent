@@ -59,9 +59,24 @@ class EventStreamApiTest extends IntegrationTest {
         String invitationId = JsonPath.read(invitation, "$.id");
         mvc.perform(post("/api/invitations/" + invitationId + "/accept").cookie(member).with(xsrf()))
                 .andExpect(status().isOk());
+        projectAnnounced(workspaceId);
     }
 
     // ---- helpers -----------------------------------------------------------------------------------------
+
+    /**
+     * Creates the workspace's project for the issues of a test and waits until its own live event has been
+     * handled, so it cannot turn up in a stream the test opens afterwards.
+     */
+    private void projectAnnounced(String workspace) throws Exception {
+        String projectId = projectIn(workspace, owner);
+        await().atMost(PATIENCE).untilAsserted(() -> assertThat(jdbc
+                        .sql("select count(*) from event_publication where serialized_event like :id")
+                        .param("id", "%" + projectId + "%")
+                        .query(Long.class)
+                        .single())
+                .isZero());
+    }
 
     private String createWorkspace(String name) throws Exception {
         String body = mvc.perform(json(post("/api/workspaces"), "{\"name\":\"" + name + "\"}").cookie(owner).with(xsrf()))
@@ -82,7 +97,8 @@ class EventStreamApiTest extends IntegrationTest {
     }
 
     private String createIssue(String workspace, Cookie by, String title) throws Exception {
-        String body = mvc.perform(as(json(post("/api/workspaces/" + workspace + "/issues"), "{\"title\":\"" + title + "\"}"), by))
+        String body = mvc.perform(as(json(post("/api/workspaces/" + workspace + "/issues"),
+                        "{\"projectId\":\"" + projectIn(workspace, by) + "\",\"title\":\"" + title + "\"}"), by))
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();
         return JsonPath.read(body, "$.id");
@@ -195,8 +211,8 @@ class EventStreamApiTest extends IntegrationTest {
                 "comment.created", "issue.deleted");
         List<Received> events = received(stream);
         assertThat(events).allSatisfy(event -> assertThat(event.field("$.issueId")).isEqualTo(issueId));
-        assertThat(events.stream().filter(e -> e.name().equals("issue.created")).findFirst().orElseThrow().field("$.number"))
-                .isEqualTo("1");
+        assertThat(events.stream().filter(e -> e.name().equals("issue.created")).findFirst().orElseThrow().field("$.key"))
+                .isEqualTo("WEB-1");
         List<String> changes = events.stream()
                 .filter(e -> e.name().equals("issue.updated"))
                 .map(e -> e.field("$.changedFields"))
@@ -225,6 +241,7 @@ class EventStreamApiTest extends IntegrationTest {
     @Test
     void aWorkspaceNeverHearsAboutAnother() throws Exception {
         String otherWorkspace = createWorkspace("Other " + UUID.randomUUID().toString().substring(0, 8));
+        projectAnnounced(otherWorkspace);
         MvcResult here = listen(workspaceId, owner);
         MvcResult there = listen(otherWorkspace, owner);
 
@@ -247,6 +264,20 @@ class EventStreamApiTest extends IntegrationTest {
 
         awaitNames(stream, "issue.created");
         assertThat(received(stream)).extracting(e -> e.field("$.issueId")).containsExactly(issueId);
+    }
+
+    @Test
+    void projectChangesAreAnnounced() throws Exception {
+        MvcResult stream = listen(workspaceId, member);
+        String base = "/api/workspaces/" + workspaceId + "/projects";
+
+        String api = createProject(workspaceId, owner, "API");
+        mvc.perform(as(json(patch(base + "/" + api), "{\"name\":\"Backend\"}"), owner)).andExpect(status().isOk());
+        mvc.perform(as(post(base + "/" + api + "/archive"), owner)).andExpect(status().isOk());
+        mvc.perform(as(post(base + "/" + api + "/restore"), owner)).andExpect(status().isOk());
+
+        awaitNames(stream, "project.updated", "project.updated", "project.updated", "project.updated");
+        assertThat(received(stream)).allSatisfy(event -> assertThat(event.field("$.projectId")).isEqualTo(api));
     }
 
     @Test

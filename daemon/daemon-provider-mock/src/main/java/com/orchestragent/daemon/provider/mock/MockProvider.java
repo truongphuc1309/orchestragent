@@ -48,8 +48,12 @@ public final class MockProvider implements AgentProvider {
     static final String STEP_ENV = "ORCHESTRAGENT_MOCK_STEP_MS";
     static final Duration DEFAULT_STEP = Duration.ofSeconds(1);
 
-    /** The heading the daemon's prompt builder writes for the issue: {@code # Issue #12: Title}. */
-    private static final Pattern ISSUE_HEADING = Pattern.compile("(?m)^#+\\s*Issue\\s+#\\d+:\\s*(.+?)\\s*$");
+    /**
+     * The heading the daemon's prompt builder writes for the issue: {@code # Issue WEB-12: Title} (or
+     * {@code # Issue #12: Title} from a server that sends no issue key).
+     */
+    private static final Pattern ISSUE_HEADING =
+            Pattern.compile("(?m)^#+\\s*Issue\\s+(?:#\\d+|[A-Z][A-Z0-9]*-\\d+):\\s*(.+?)\\s*$");
     private static final Pattern MODE_MARKER = Pattern.compile("\\[mock:([a-z]+)]", Pattern.CASE_INSENSITIVE);
 
     enum Mode {

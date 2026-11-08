@@ -21,15 +21,15 @@ class NotificationRepositoryAdapter implements NotificationRepository {
 
     /** A second delivery of the same event for the same person is skipped by the database itself, even in a race. */
     private static final String INSERT = """
-            INSERT INTO inbox.notifications (id, workspace_id, recipient_user_id, type, issue_id, issue_number,
+            INSERT INTO inbox.notifications (id, workspace_id, recipient_user_id, type, issue_id, issue_key,
                 issue_title, actor_name, detail, source_event_id, read_at, created_at)
-            VALUES (:id, :workspaceId, :recipientId, :type, :issueId, :issueNumber, :issueTitle, :actorName, :detail,
+            VALUES (:id, :workspaceId, :recipientId, :type, :issueId, :issueKey, :issueTitle, :actorName, :detail,
                 :sourceEventId, :readAt, :createdAt)
             ON CONFLICT (source_event_id, recipient_user_id) DO NOTHING
             """;
 
     private static final String COLUMNS = """
-            id, workspace_id, recipient_user_id, type, issue_id, issue_number, issue_title, actor_name, detail,
+            id, workspace_id, recipient_user_id, type, issue_id, issue_key, issue_title, actor_name, detail,
             source_event_id, read_at, created_at
             """;
 
@@ -47,7 +47,7 @@ class NotificationRepositoryAdapter implements NotificationRepository {
                 .param("recipientId", n.recipientId())
                 .param("type", n.type().code())
                 .param("issueId", n.issueId())
-                .param("issueNumber", n.issueNumber())
+                .param("issueKey", n.issueKey())
                 .param("issueTitle", n.issueTitle())
                 .param("actorName", n.actorName())
                 .param("detail", n.detail())
@@ -129,7 +129,7 @@ class NotificationRepositoryAdapter implements NotificationRepository {
                 rs.getObject("recipient_user_id", UUID.class),
                 NotificationType.fromCode(rs.getString("type")),
                 rs.getObject("issue_id", UUID.class),
-                rs.getInt("issue_number"),
+                rs.getString("issue_key"),
                 rs.getString("issue_title"),
                 rs.getString("actor_name"),
                 rs.getString("detail"),

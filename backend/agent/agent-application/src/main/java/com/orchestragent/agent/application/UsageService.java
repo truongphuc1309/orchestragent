@@ -45,8 +45,8 @@ public class UsageService {
         this.clock = clock;
     }
 
-    /** One issue's runs. {@code number} and {@code title} are null when the issue was deleted since. */
-    public record IssueUsage(UUID issueId, Integer number, String title, Totals totals) {
+    /** One issue's runs. {@code key} ({@code WEB-12}) and {@code title} are null when the issue was deleted since. */
+    public record IssueUsage(UUID issueId, String key, String title, Totals totals) {
     }
 
     /** {@code byDay} has one entry for every day of the period, with zeros for days without runs. */
@@ -75,7 +75,7 @@ public class UsageService {
                     Optional<IssueDetails> details = issues.find(workspaceId, issue.issueId());
                     return new IssueUsage(
                             issue.issueId(),
-                            details.map(IssueDetails::number).orElse(null),
+                            details.map(IssueDetails::key).orElse(null),
                             details.map(IssueDetails::title).orElse(null),
                             issue.totals());
                 })

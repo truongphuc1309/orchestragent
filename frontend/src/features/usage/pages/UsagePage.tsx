@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { Link } from 'react-router'
-import { issueKey } from '@/features/issue/key'
 import { useWorkspace } from '@/features/workspace/workspaceContext'
 import { formatCost, formatTokens } from '@/shared/lib/format'
 import { Badge } from '@/shared/ui/badge'
@@ -102,7 +101,7 @@ function UsageReport({ usage, metric, onMetric }: { usage: Usage; metric: Metric
         {usage.byAgent.length === 0 ? (
           <p className="text-sm text-muted-foreground">No agent ran in this period.</p>
         ) : (
-          <div className="overflow-x-auto rounded-md border">
+          <div className="relative overflow-x-auto rounded-md border">
             <table className="w-full text-left text-sm" aria-label="Usage per agent">
               <thead className="border-b bg-muted text-xs text-muted-foreground uppercase">
                 <tr>
@@ -133,7 +132,7 @@ function UsageReport({ usage, metric, onMetric }: { usage: Usage; metric: Metric
         {usage.topIssues.length === 0 ? (
           <p className="text-sm text-muted-foreground">No issue had a run in this period.</p>
         ) : (
-          <div className="overflow-x-auto rounded-md border">
+          <div className="relative overflow-x-auto rounded-md border">
             <table className="w-full text-left text-sm" aria-label="Usage per issue">
               <thead className="border-b bg-muted text-xs text-muted-foreground uppercase">
                 <tr>
@@ -145,11 +144,11 @@ function UsageReport({ usage, metric, onMetric }: { usage: Usage; metric: Metric
                 {usage.topIssues.map((issue) => (
                   <tr key={issue.issueId}>
                     <td className="px-3 py-2">
-                      {issue.number === null ? (
+                      {issue.key === null ? (
                         <span className="text-muted-foreground">Deleted issue</span>
                       ) : (
-                        <Link to={`/w/${workspace.slug}/issues/${issue.number}`}>
-                          <span className="text-muted-foreground">{issueKey(workspace.slug, issue.number)}</span>{' '}
+                        <Link to={`/w/${workspace.slug}/issues/${issue.key}`}>
+                          <span className="text-muted-foreground">{issue.key}</span>{' '}
                           {issue.title}
                         </Link>
                       )}

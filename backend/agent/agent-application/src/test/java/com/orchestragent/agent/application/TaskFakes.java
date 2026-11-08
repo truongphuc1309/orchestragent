@@ -217,12 +217,15 @@ final class TaskFakes {
     /** The issue context as the agent context sees it. */
     static final class FakeIssues implements IssueDirectory {
 
+        /** Every fake issue is in one project with the key WEB, so issue 7 is WEB-7. */
+        static final UUID PROJECT_ID = UUID.randomUUID();
+
         final Map<UUID, IssueDetails> byId = new HashMap<>();
         final Map<UUID, List<CommentDetails>> comments = new HashMap<>();
 
         IssueDetails add(UUID workspaceId, int number, ActorType assigneeType, UUID assigneeId, String status) {
             IssueDetails issue = new IssueDetails(
-                    UUID.randomUUID(), workspaceId, number, "Issue " + number, "Description " + number, status, assigneeType, assigneeId,
+                    UUID.randomUUID(), workspaceId, PROJECT_ID, "WEB-" + number, number, "Issue " + number, "Description " + number, status, assigneeType, assigneeId,
                     ActorType.MEMBER, UUID.randomUUID());
             byId.put(issue.id(), issue);
             return issue;
@@ -230,7 +233,8 @@ final class TaskFakes {
 
         IssueDetails assign(IssueDetails issue, ActorType type, UUID assigneeId) {
             IssueDetails changed = new IssueDetails(
-                    issue.id(), issue.workspaceId(), issue.number(), issue.title(), issue.description(), issue.status(), type, assigneeId,
+                    issue.id(), issue.workspaceId(), issue.projectId(), issue.key(), issue.number(), issue.title(), issue.description(),
+                    issue.status(), type, assigneeId,
                     issue.creatorType(), issue.creatorId());
             byId.put(issue.id(), changed);
             return changed;
@@ -238,7 +242,7 @@ final class TaskFakes {
 
         IssueDetails withStatus(IssueDetails issue, String status) {
             IssueDetails changed = new IssueDetails(
-                    issue.id(), issue.workspaceId(), issue.number(), issue.title(), issue.description(), status,
+                    issue.id(), issue.workspaceId(), issue.projectId(), issue.key(), issue.number(), issue.title(), issue.description(), status,
                     issue.assigneeType(), issue.assigneeId(), issue.creatorType(), issue.creatorId());
             byId.put(issue.id(), changed);
             return changed;

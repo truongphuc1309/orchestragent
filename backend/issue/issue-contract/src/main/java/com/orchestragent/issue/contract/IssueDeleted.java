@@ -5,7 +5,8 @@ import java.time.Instant;
 import java.util.Objects;
 import java.util.UUID;
 
-public record IssueDeleted(UUID eventId, Instant occurredAt, UUID workspaceId, UUID issueId, int number)
+/** An issue is gone. {@code key} ({@code WEB-12}) is what people knew it by. */
+public record IssueDeleted(UUID eventId, Instant occurredAt, UUID workspaceId, UUID issueId, String key)
         implements DomainEvent {
 
     public IssueDeleted {
@@ -13,5 +14,6 @@ public record IssueDeleted(UUID eventId, Instant occurredAt, UUID workspaceId, U
         Objects.requireNonNull(occurredAt, "occurredAt");
         Objects.requireNonNull(workspaceId, "workspaceId");
         Objects.requireNonNull(issueId, "issueId");
+        Objects.requireNonNull(key, "key");
     }
 }

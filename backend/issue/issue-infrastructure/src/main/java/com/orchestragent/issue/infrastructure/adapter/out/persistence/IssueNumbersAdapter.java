@@ -1,6 +1,8 @@
 package com.orchestragent.issue.infrastructure.adapter.out.persistence;
 
 import com.orchestragent.issue.domain.IssueNumbers;
+import com.orchestragent.issue.domain.ProjectId;
+import java.util.OptionalInt;
 import java.util.UUID;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
@@ -9,13 +11,14 @@ import org.springframework.stereotype.Repository;
 class IssueNumbersAdapter implements IssueNumbers {
 
     /**
-     * One statement both creates the counter and increments it, and the row lock it takes makes concurrent
-     * callers wait for each other, so two issues never get the same number. The first call inserts 2 and
-     * returns 1; later calls return the number before the increment.
+     * One statement increments the counter of the project and returns the number before the increment. The row
+     * lock it takes makes concurrent callers wait for each other, so two issues never get the same number. An
+     * archived project (or one of another workspace) matches no row, so nothing can be added to it even when it
+     * was archived after the caller checked.
      */
     private static final String NEXT = """
-            INSERT INTO issue.issue_counters (workspace_id, next_number) VALUES (:workspaceId, 2)
-            ON CONFLICT (workspace_id) DO UPDATE SET next_number = issue.issue_counters.next_number + 1
+            UPDATE issue.projects SET next_number = next_number + 1
+            WHERE id = :projectId AND workspace_id = :workspaceId AND archived_at IS NULL
             RETURNING next_number - 1
             """;
 
@@ -26,7 +29,13 @@ class IssueNumbersAdapter implements IssueNumbers {
     }
 
     @Override
-    public int next(UUID workspaceId) {
-        return jdbc.sql(NEXT).param("workspaceId", workspaceId).query(Integer.class).single();
+    public OptionalInt next(UUID workspaceId, ProjectId projectId) {
+        return jdbc.sql(NEXT)
+                .param("projectId", projectId.value())
+                .param("workspaceId", workspaceId)
+                .query(Integer.class)
+                .optional()
+                .map(OptionalInt::of)
+                .orElseGet(OptionalInt::empty);
     }
 }

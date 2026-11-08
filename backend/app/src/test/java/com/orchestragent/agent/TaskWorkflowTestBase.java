@@ -177,7 +177,7 @@ public abstract class TaskWorkflowTestBase extends IntegrationTest {
 
     protected String createIssue(String title, String statusCode) throws Exception {
         return JsonPath.read(
-                mvc.perform(as(json(post(issuesBase), "{\"title\":\"" + title + "\",\"description\":\"Details of " + title + "\",\"status\":\"" + statusCode + "\"}"), mia))
+                mvc.perform(as(json(post(issuesBase), "{\"projectId\":\"" + projectIn(workspaceId, mia) + "\",\"title\":\"" + title + "\",\"description\":\"Details of " + title + "\",\"status\":\"" + statusCode + "\"}"), mia))
                         .andExpect(status().isCreated())
                         .andReturn().getResponse().getContentAsString(),
                 "$.id");

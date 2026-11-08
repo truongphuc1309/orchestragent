@@ -2,7 +2,7 @@ import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { routes } from '@/app/routes'
-import { ACME, ADA, comment, issue, issueId, task, taskId } from '@/test/fixtures'
+import { ACM_PROJECT, ACME, ADA, comment, issue, issueId, task, taskId } from '@/test/fixtures'
 import { fakeServer, json, problem, type RecordedRequest } from '@/test/fakeServer'
 import { renderRoutes } from '@/test/render'
 import type { Comment, Issue } from '../schemas'
@@ -20,15 +20,16 @@ function handlers(current: () => Issue, extra: Record<string, Handler> = {}) {
     'GET /api/workspaces': () => json(200, [ACME]),
     [`GET ${BASE}/members`]: () => json(200, []),
     [`GET ${BASE}/agents`]: () => json(200, []),
-    [`GET ${BASE}/issues/number/7`]: () => json(200, current()),
+    [`GET ${BASE}/issues/key/ACM-7`]: () => json(200, current()),
     [`GET ${BASE}/issues/${IN_REVIEW.id}/comments`]: () => json(200, []),
     [`GET ${BASE}/tasks?issueId=${IN_REVIEW.id}`]: () => json(200, []),
+    [`GET /api/workspaces/${ACME.id}/projects?includeArchived=true`]: () => json(200, [ACM_PROJECT]),
     ...extra,
   }
 }
 
 async function openIssue() {
-  const view = renderRoutes(routes, ['/w/acme/issues/7'])
+  const view = renderRoutes(routes, ['/w/acme/issues/ACM-7'])
   await screen.findByRole('heading', { name: 'Fix the login' })
   return view
 }

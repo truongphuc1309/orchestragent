@@ -23,8 +23,8 @@ function report(days: string[], perDay: Totals[]): Usage {
       { agentId: agentId(2), agentName: 'Old helper', archived: true, totals: totals(1, 0.3, { failed: 1, completed: 0 }) },
     ],
     topIssues: [
-      { issueId: issueId(7), number: 7, title: 'Add login', totals: totals(3, 1.0) },
-      { issueId: issueId(8), number: null, title: null, totals: totals(2, 0.5) },
+      { issueId: issueId(7), key: 'ACM-7', title: 'Add login', totals: totals(3, 1.0) },
+      { issueId: issueId(8), key: null, title: null, totals: totals(2, 0.5) },
     ],
     byDay: days.map((day, i) => ({ day, totals: perDay[i] ?? totals(0, 0) })),
   }
@@ -95,7 +95,7 @@ describe('usage page', () => {
       'Old helperArchived111k100$0.30',
     ])
     const issues = screen.getByRole('table', { name: 'Usage per issue' })
-    expect(within(issues).getByRole('link', { name: 'ACM-7 Add login' })).toHaveAttribute('href', '/w/acme/issues/7')
+    expect(within(issues).getByRole('link', { name: 'ACM-7 Add login' })).toHaveAttribute('href', '/w/acme/issues/ACM-7')
     expect(within(issues).getByText('Deleted issue')).toBeInTheDocument()
   })
 

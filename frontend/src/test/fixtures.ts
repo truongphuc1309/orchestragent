@@ -1,6 +1,7 @@
 import type { Task, TaskMessage } from '@/features/task/schemas'
 import type { Agent, Runtime } from '@/features/agent/schemas'
 import type { Comment, Issue } from '@/features/issue/schemas'
+import type { Project } from '@/features/project/schemas'
 import type { Invitation, Member, Workspace } from '@/features/workspace/schemas'
 
 /** Sample API data shared by the tests. IDs are fixed so assertions stay readable. */
@@ -45,8 +46,31 @@ export function invitation(overrides: Partial<Invitation> & Pick<Invitation, 'id
 
 export const MIA = { userId: '0198f1c0-0000-7000-8000-000000000002', name: 'Mia' }
 
+export function projectId(n: number): string {
+  return `0198f1c0-0000-7000-8000-0000000005${String(n).padStart(2, '0')}`
+}
+
+export function project(overrides: Partial<Project> & Pick<Project, 'key' | 'name'>): Project {
+  return {
+    id: projectId(1),
+    description: '',
+    createdById: ADA.id,
+    createdByName: ADA.name,
+    archived: false,
+    archivedAt: null,
+    createdAt: '2026-01-03T10:00:00Z',
+    updatedAt: '2026-01-03T10:00:00Z',
+    ...overrides,
+  }
+}
+
+/** The project the sample issues are in, unless a test says otherwise: their keys are ACM-1, ACM-2... */
+export const ACM_PROJECT: Project = project({ id: projectId(1), key: 'ACM', name: 'Acme app' })
+
 export function issue(overrides: Partial<Issue> & Pick<Issue, 'id' | 'number' | 'title'>): Issue {
   return {
+    projectId: ACM_PROJECT.id,
+    key: `${ACM_PROJECT.key}-${overrides.number}`,
     description: '',
     status: 'todo',
     priority: 'none',

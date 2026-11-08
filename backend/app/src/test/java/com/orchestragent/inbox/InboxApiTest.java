@@ -75,6 +75,7 @@ class InboxApiTest extends TaskWorkflowTestBase {
         String body = inbox(mia);
         assertThat(JsonPath.<String>read(body, "$.notifications[0].type")).isEqualTo("issue_assigned");
         assertThat(JsonPath.<String>read(body, "$.notifications[0].issueTitle")).isEqualTo("Write the docs");
+        assertThat(JsonPath.<String>read(body, "$.notifications[0].issueKey")).matches("WEB-[0-9]+");
         assertThat(JsonPath.<String>read(body, "$.notifications[0].issueId")).isEqualTo(issueId);
         assertThat(JsonPath.<String>read(body, "$.notifications[0].actorName")).isNotBlank();
         assertThat(JsonPath.<Object>read(body, "$.notifications[0].readAt")).isNull();

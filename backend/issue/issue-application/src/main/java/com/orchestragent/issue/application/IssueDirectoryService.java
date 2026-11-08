@@ -67,6 +67,8 @@ class IssueDirectoryService implements IssueDirectory {
         return new IssueDetails(
                 issue.id().value(),
                 issue.workspaceId(),
+                issue.projectId().value(),
+                issue.key().toString(),
                 issue.number(),
                 issue.title(),
                 issue.description(),

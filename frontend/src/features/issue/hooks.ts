@@ -5,7 +5,7 @@ import {
   assignIssue,
   createIssue,
   deleteIssue,
-  getIssueByNumber,
+  getIssueByKey,
   listComments,
   listIssues,
   moveIssue,
@@ -23,7 +23,7 @@ export const issueKeys = {
   list: (workspaceId: string, filters: IssueFilters) => [...issueKeys.all(workspaceId), 'list', filters] as const,
   details: (workspaceId: string) => [...issueKeys.all(workspaceId), 'detail'] as const,
   lists: (workspaceId: string) => [...issueKeys.all(workspaceId), 'list'] as const,
-  detail: (workspaceId: string, number: number | null) => [...issueKeys.all(workspaceId), 'detail', number] as const,
+  detail: (workspaceId: string, key: string | null) => [...issueKeys.all(workspaceId), 'detail', key] as const,
   comments: (workspaceId: string, issueId: string) => [...issueKeys.all(workspaceId), 'comments', issueId] as const,
 }
 
@@ -34,12 +34,12 @@ export function useIssues(workspaceId: string, filters: IssueFilters) {
   })
 }
 
-/** {@code number} is null when the URL does not hold a valid issue number; nothing is requested then. */
-export function useIssue(workspaceId: string, number: number | null) {
+/** {@code key} (WEB-12) is null when the URL does not hold a valid issue key; nothing is requested then. */
+export function useIssue(workspaceId: string, key: string | null) {
   return useQuery({
-    queryKey: issueKeys.detail(workspaceId, number),
-    queryFn: ({ signal }) => getIssueByNumber(workspaceId, number ?? 0, signal),
-    enabled: number !== null,
+    queryKey: issueKeys.detail(workspaceId, key),
+    queryFn: ({ signal }) => getIssueByKey(workspaceId, key ?? '', signal),
+    enabled: key !== null,
     // A missing issue will not appear by asking again.
     retry: false,
   })
@@ -57,7 +57,7 @@ export function useCreateIssue(workspaceId: string) {
 function useSyncIssue(workspaceId: string) {
   const queryClient = useQueryClient()
   return (issue: Issue) => {
-    queryClient.setQueryData(issueKeys.detail(workspaceId, issue.number), issue)
+    queryClient.setQueryData(issueKeys.detail(workspaceId, issue.key), issue)
     return queryClient.invalidateQueries({ queryKey: issueKeys.lists(workspaceId) })
   }
 }

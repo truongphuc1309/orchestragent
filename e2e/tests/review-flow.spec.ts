@@ -28,6 +28,16 @@ test('a person and an agent finish an issue together', async ({ page, context })
       base = new URL(page.url()).pathname.split('/').slice(0, 3).join('/')
     })
 
+    await test.step('create a project with its own key', async () => {
+      await page.goto(`${base}/projects`)
+      await page.getByRole('button', { name: 'Create project' }).click()
+      await page.getByLabel('Name').fill('E2E Website')
+      await page.getByLabel('Key').fill('E2E')
+      await page.getByRole('button', { name: 'Create', exact: true }).click()
+      await expect(page).toHaveURL(new RegExp(`${base}/projects/E2E$`))
+      await expect(page.getByRole('heading', { name: /E2E Website/ })).toBeVisible()
+    })
+
     await test.step('connect a computer (the daemon with the mock provider)', async () => {
       const token = await createApiToken(context)
       daemon = startMockDaemon(token)
@@ -50,16 +60,21 @@ test('a person and an agent finish an issue together', async ({ page, context })
       await expect(page.getByText('Mock Writer').first()).toBeVisible()
     })
 
-    await test.step('create an issue assigned to the agent', async () => {
+    await test.step('create an issue assigned to the agent, in the project, from the Issues page', async () => {
       await page.goto(`${base}/issues`)
       await page.getByRole('button', { name: 'Create issue' }).click()
+      // The workspace's only project is chosen for the new issue.
+      await expect(page.getByRole('combobox', { name: 'Project' })).toContainText('E2E Website')
       await page.getByLabel('Title').fill('Write a greeting')
       await page.getByLabel('Description').fill('Say hello to the team.')
       await page.getByRole('combobox', { name: 'Assignee' }).click()
       await page.getByRole('option', { name: /Mock Writer/ }).click()
       await page.getByRole('button', { name: 'Create', exact: true }).click()
+      await expect(page.getByText('E2E-1 was created')).toBeVisible()
       await page.getByRole('link', { name: /Write a greeting/ }).first().click()
+      await expect(page).toHaveURL(new RegExp(`${base}/issues/E2E-1$`))
       await expect(page.getByRole('heading', { name: 'Write a greeting' })).toBeVisible()
+      await expect(page.getByText('E2E-1', { exact: true })).toBeVisible()
     })
 
     await test.step('the agent works and the issue waits for review', async () => {

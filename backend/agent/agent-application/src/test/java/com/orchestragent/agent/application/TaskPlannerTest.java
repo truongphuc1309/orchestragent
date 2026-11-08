@@ -427,7 +427,7 @@ class TaskPlannerTest {
         AgentTask waiting = tasksOf(issue).stream().filter(AgentTask::isActive).findFirst().orElseThrow();
         published.clear();
 
-        planner.issueDeleted(new IssueDeleted(UUID.randomUUID(), clock.instant(), workspace, issue.id(), 1));
+        planner.issueDeleted(new IssueDeleted(UUID.randomUUID(), clock.instant(), workspace, issue.id(), "WEB-1"));
 
         assertThat(waiting.status()).isEqualTo(TaskStatus.CANCELLED);
         assertThat(finished.status()).isEqualTo(TaskStatus.COMPLETED);

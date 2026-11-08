@@ -12,9 +12,9 @@ interface IssueJpaRepository extends JpaRepository<IssueEntity, UUID>, JpaSpecif
 
     Optional<IssueEntity> findByIdAndWorkspaceId(UUID id, UUID workspaceId);
 
-    Optional<IssueEntity> findByWorkspaceIdAndNumber(UUID workspaceId, int number);
+    Optional<IssueEntity> findByWorkspaceIdAndProjectIdAndNumber(UUID workspaceId, UUID projectId, int number);
 
-    List<IssueEntity> findByWorkspaceIdAndStatusOrderByPositionAscNumberAsc(UUID workspaceId, String status);
+    List<IssueEntity> findByWorkspaceIdAndStatusOrderByPositionAscCreatedAtAsc(UUID workspaceId, String status);
 
     @Query("select max(i.position) from IssueEntity i where i.workspaceId = :workspaceId and i.status = :status")
     Optional<Double> maxPosition(@Param("workspaceId") UUID workspaceId, @Param("status") String status);

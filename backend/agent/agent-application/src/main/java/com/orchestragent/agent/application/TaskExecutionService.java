@@ -161,7 +161,11 @@ public class TaskExecutionService {
                 task.attempt(),
                 new AgentBrief(agent.get().id().value(), agent.get().name(), agent.get().instructions(), agent.get().model()),
                 new IssueBrief(
-                        issue.get().id(), issue.get().number(), issue.get().title(), issue.get().description()),
+                        issue.get().id(),
+                        issue.get().key(),
+                        issue.get().number(),
+                        issue.get().title(),
+                        issue.get().description()),
                 comments,
                 prior.map(AgentTask::sessionId).orElse(null),
                 prior.map(AgentTask::workDir).orElse(null)));

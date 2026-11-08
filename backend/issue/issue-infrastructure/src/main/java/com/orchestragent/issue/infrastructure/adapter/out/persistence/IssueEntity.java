@@ -17,6 +17,13 @@ class IssueEntity {
     @Column(name = "workspace_id", nullable = false)
     private UUID workspaceId;
 
+    @Column(name = "project_id", nullable = false, updatable = false)
+    private UUID projectId;
+
+    /** A copy of the project key, which never changes (a foreign key keeps it equal to the project's). */
+    @Column(name = "project_key", nullable = false, updatable = false)
+    private String projectKey;
+
     @Column(nullable = false)
     private int number;
 
@@ -60,6 +67,8 @@ class IssueEntity {
     IssueEntity(
             UUID id,
             UUID workspaceId,
+            UUID projectId,
+            String projectKey,
             int number,
             String title,
             String description,
@@ -74,6 +83,8 @@ class IssueEntity {
             Instant updatedAt) {
         this.id = id;
         this.workspaceId = workspaceId;
+        this.projectId = projectId;
+        this.projectKey = projectKey;
         this.number = number;
         this.title = title;
         this.description = description;
@@ -114,6 +125,14 @@ class IssueEntity {
 
     UUID getWorkspaceId() {
         return workspaceId;
+    }
+
+    UUID getProjectId() {
+        return projectId;
+    }
+
+    String getProjectKey() {
+        return projectKey;
     }
 
     int getNumber() {
