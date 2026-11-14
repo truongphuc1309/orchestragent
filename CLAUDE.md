@@ -49,6 +49,14 @@ landing page (see "No home page"). Frontend 442 tests (35 files), `typecheck`, `
 checks (no redirect, wrong order) failed the right tests. By hand on the dev app: `/w/home-check` redirected to
 `/issues`, "My Issues" first and marked. Backend untouched, so the Gradle build was not run.
 
+Board and list rework (after the Home removal, **not committed yet**): board columns as tall as the screen and
+scrolling inside, title/priority/assignee (and status in the list) editable on cards and rows, project shown on the
+cards of My Issues. Frontend only: 466 tests (37 files), `typecheck`, `lint`, `build` clean; 2 break-the-rule checks
+(keyboard guard, project name) failed the right tests. By hand on the dev app with a real mouse: 15 cards in one
+column scrolled inside the column (page did not scroll), priority, assignee and title changed in place (spaces typed
+in the title field), a drag to another column still worked, the project board shows no project line, the list view
+edits. E2E and the Gradle build were not run. See "Board and list editing".
+
 Last full run (step 13): `./gradlew build` 952 tests (829 backend, 123 daemon; the real-Claude smoke test skipped), frontend 429 tests (34 files), E2E 1 test passing;
 `typecheck`, `lint`, `build` clean. 5 break-the-rule checks (one needed a new test first, see PLAN.md step 13). By hand
 on the dev database with old data (a `pg_dump` was taken first, outside the repo): the migration gave each workspace
@@ -181,6 +189,25 @@ processes in this harness can only be killed hard; `DaemonTest` covers it.
   `user.upload` honours `accept`, so the wrong-type test uses `userEvent.setup({ applyAccept: false })`.
 - The user's `.env` has no `STORAGE_*` yet: `docker compose up` now fails until they add them (same `:?` rule as the
   database). For manual runs pass throwaway keys: `STORAGE_ACCESS_KEY=... STORAGE_SECRET_KEY=... docker compose up -d rustfs`.
+
+## Board and list editing
+
+- **App shell:** `WorkspaceLayout` is `h-svh`: the window never scrolls, only `<main>` (`overflow-y-auto`) does, so a
+  page can fill the screen. The sidebar scrolls on its own. Issue pages wrap `IssuesView` in `flex h-full flex-col`;
+  `IssuesView` is `flex-1` and gets `min-h-0` **only in board view** (without it the board grows with its cards and
+  the columns run past the screen). The board is `min-h-80 flex-1`; each column's `<ul>` is the scroller.
+- **In-place edits:** `issue/editing.ts` (`useIssueEditing`) gives cards and rows the members, agents and one
+  function per field (errors toast, the old value stays because lists change only when the server confirms).
+  `IssueFields` selects take `compact`; `EditableTitleLink` is the link plus a pencil. The project cannot be changed
+  (issues cannot move between projects). The drag copy (`DragOverlay`) is the card without `editing`: static.
+- **dnd-kit trap:** `useSortable` puts its keyboard listener on the `<li>`, and without an activator node Space or
+  Enter from *any* child starts a drag (typing a space in the title field, opening a menu with the keyboard). The
+  `<li>` therefore forwards `onKeyDown` only when the event target is the `<li>` itself. Controls inside the card
+  also stop `pointerdown` from bubbling (Radix menus open on a press). jsdom cannot test the pointer part; it was
+  checked by hand.
+- `IssueCardView` shows the project (`projectName`) only when `IssueBoard` gets `projectNames`, which `IssuesView`
+  passes on My Issues and not on a project page. The list always had the Project column there.
+- `IssuesPage.test` "cut short" now finds the note by text: dnd-kit's live region is also `role="status"`.
 
 ## No home page (decided by the user, after step 13)
 

@@ -3,6 +3,7 @@ import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { Plus } from 'lucide-react'
 import { cn } from '@/shared/lib/utils'
 import { Button } from '@/shared/ui/button'
+import type { IssueEditing } from '../editing'
 import { STATUS_LABEL, type Issue, type Status } from '../schemas'
 import { StatusLozenge } from './StatusLozenge'
 import { SortableIssueCard } from './IssueCard'
@@ -13,11 +14,17 @@ interface Props {
   status: Status
   issues: Issue[]
   workspaceSlug: string
+  /** Project names by project ID; given when the board mixes projects, so each card names its own. */
+  projectNames?: ReadonlyMap<string, string>
+  editing: IssueEditing
   onCreate?: (status: Status) => void
 }
 
-/** One status of the board: a heading with the count, and the cards from top to bottom. */
-export function BoardColumn({ status, issues, workspaceSlug, onCreate }: Props) {
+/**
+ * One status of the board: a heading with the count, and the cards from top to bottom. The column is as tall as
+ * the board; when its cards do not fit, the list of cards scrolls and the heading stays.
+ */
+export function BoardColumn({ status, issues, workspaceSlug, projectNames, editing, onCreate }: Props) {
   const { setNodeRef, isOver } = useDroppable({ id: `${COLUMN_ID_PREFIX}${status}`, data: { status } })
 
   return (
@@ -43,9 +50,20 @@ export function BoardColumn({ status, issues, workspaceSlug, onCreate }: Props) 
         )}
       </header>
       <SortableContext items={issues.map((issue) => issue.id)} strategy={verticalListSortingStrategy}>
-        <ul ref={setNodeRef} className="flex min-h-16 flex-1 flex-col gap-2 p-0">
+        <ul
+          ref={setNodeRef}
+          // Room around the cards so the scroll area does not cut their shadows.
+          className="relative -mx-1 flex min-h-16 flex-1 flex-col gap-2 overflow-y-auto px-1 py-0.5"
+        >
           {issues.map((issue) => (
-            <SortableIssueCard key={issue.id} issue={issue} status={status} workspaceSlug={workspaceSlug} />
+            <SortableIssueCard
+              key={issue.id}
+              issue={issue}
+              status={status}
+              workspaceSlug={workspaceSlug}
+              projectName={projectNames?.get(issue.projectId)}
+              editing={editing}
+            />
           ))}
         </ul>
       </SortableContext>

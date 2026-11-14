@@ -72,7 +72,7 @@ export function WorkspaceSidebar({ current, workspaces }: { current: Workspace; 
   const projects = useProjects(current.id)
 
   return (
-    <aside className="hidden w-60 shrink-0 flex-col gap-4 border-r bg-sidebar p-2 md:flex">
+    <aside className="relative hidden w-60 shrink-0 flex-col gap-4 overflow-y-auto border-r bg-sidebar p-2 md:flex">
       <WorkspaceSwitcher current={current} workspaces={workspaces} />
       <nav aria-label="Workspace" className="flex flex-col gap-0.5">
         <SidebarLink to={`${base}/issues`} icon={CircleDot}>

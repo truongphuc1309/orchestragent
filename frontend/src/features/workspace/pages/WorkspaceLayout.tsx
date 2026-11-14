@@ -77,11 +77,12 @@ export function WorkspaceLayout() {
   return (
     <WorkspaceContext.Provider value={workspace}>
       <LiveUpdates workspaceId={workspace.id} />
-      <div className="flex min-h-svh flex-col">
+      {/* The window is as tall as the screen and only the page area scrolls, so a page (the board) can fill it. */}
+      <div className="flex h-svh flex-col">
         <TopBar actions={<UserMenu />} />
-        <div className="flex flex-1">
+        <div className="flex min-h-0 flex-1">
           <WorkspaceSidebar current={workspace} workspaces={workspaces.data ?? []} />
-          <main className="min-w-0 flex-1 px-8 py-6">
+          <main className="relative min-w-0 flex-1 overflow-y-auto px-8 py-6">
             <Outlet />
           </main>
         </div>

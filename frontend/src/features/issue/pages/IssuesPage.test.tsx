@@ -1,5 +1,6 @@
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { z } from 'zod'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { routes } from '@/app/routes'
 import { ACM_PROJECT, ACME, ADA, agent, agentId, issue, issueId, member, MIA, project, projectId } from '@/test/fixtures'
@@ -7,20 +8,23 @@ import type { Agent } from '@/features/agent/schemas'
 import { fakeServer, json, problem } from '@/test/fakeServer'
 import { renderRoutes } from '@/test/render'
 import { NO_FILTERS, useIssueViewStore } from '../filters'
-import type { Issue } from '../schemas'
+import { prioritySchema, statusSchema, type Actor, type Issue } from '../schemas'
 
 const MEMBERS = [member({ userId: ADA.id, name: 'ada', role: 'owner' }), member({ userId: MIA.userId, name: 'Mia' })]
 
+const PLAN = issue({ id: issueId(1), number: 1, title: 'Write the plan', status: 'todo', position: 1024, priority: 'high' })
+const LOGIN = issue({
+  id: issueId(2),
+  number: 2,
+  title: 'Fix the login',
+  status: 'todo',
+  position: 512,
+  assignee: { type: 'member', id: MIA.userId, name: 'Mia', avatarUrl: null },
+})
+
 const ISSUES: Issue[] = [
-  issue({ id: issueId(1), number: 1, title: 'Write the plan', status: 'todo', position: 1024, priority: 'high' }),
-  issue({
-    id: issueId(2),
-    number: 2,
-    title: 'Fix the login',
-    status: 'todo',
-    position: 512,
-    assignee: { type: 'member', id: MIA.userId, name: 'Mia', avatarUrl: null },
-  }),
+  PLAN,
+  LOGIN,
   issue({ id: issueId(3), number: 3, title: 'Ship it', status: 'done', position: 1024, priority: 'urgent' }),
   issue({ id: issueId(4), number: 4, title: 'Dropped idea', status: 'cancelled', position: 1024 }),
 ]
@@ -105,8 +109,23 @@ describe('issues page', () => {
       const card = cardOf('Fix the login')
       expect(link).toHaveAttribute('href', '/w/acme/issues/ACM-2')
       expect(card).toHaveTextContent('ACM-2')
-      expect(within(card).getByText('Assigned to Mia')).toBeInTheDocument()
-      expect(within(cardOf('Write the plan')).getByRole('img', { name: 'Priority: High' })).toBeInTheDocument()
+      // The assignee and priority are fields now (they can be changed), not plain text and an icon.
+      expect(within(card).getByRole('combobox', { name: 'Assignee' })).toHaveTextContent('Mia')
+      expect(within(cardOf('Write the plan')).getByRole('combobox', { name: 'Priority' })).toHaveAttribute('title', 'High')
+    })
+
+    it('names the project on each card of My Issues', async () => {
+      const API = project({ id: projectId(2), key: 'API', name: 'Backend' })
+      const API_ISSUE = issue({ id: issueId(5), number: 1, title: 'Add an endpoint', projectId: API.id, key: 'API-1' })
+      fakeServer({
+        ...baseHandlers([API_ISSUE, ...ISSUES]),
+        [`GET /api/workspaces/${ACME.id}/projects?includeArchived=true`]: () => json(200, [API, ACM_PROJECT]),
+      })
+      renderRoutes(routes, ['/w/acme/issues'])
+
+      await screen.findByRole('link', { name: 'Add an endpoint' })
+      await waitFor(() => expect(cardOf('Add an endpoint')).toHaveTextContent('Backend'))
+      expect(cardOf('Write the plan')).toHaveTextContent('Acme app')
     })
 
     it('shows a message when the issues cannot be loaded and retries', async () => {
@@ -129,7 +148,8 @@ describe('issues page', () => {
       fakeServer(baseHandlers(ISSUES, 1203))
       renderRoutes(routes, ['/w/acme/issues'])
 
-      expect(await screen.findByRole('status')).toHaveTextContent('Showing the newest 4 of 1203 issues')
+      // Not by role: dnd-kit's live region on the board is a "status" too.
+      expect(await screen.findByText(/Showing the newest 4 of 1203 issues/)).toHaveAttribute('role', 'status')
     })
   })
 
@@ -166,6 +186,166 @@ describe('issues page', () => {
       renderRoutes(routes, ['/w/acme/issues'])
 
       expect(await screen.findByText('No issues yet. Create the first one.')).toBeInTheDocument()
+    })
+  })
+
+  describe('editing in place', () => {
+    const MIA_ACTOR: Actor = { type: 'member', id: MIA.userId, name: 'Mia', avatarUrl: null }
+    const changesSchema = z.object({
+      title: z.string().optional(),
+      status: statusSchema.optional(),
+      priority: prioritySchema.optional(),
+    })
+    const assignSchema = z.object({ assignee: z.object({ id: z.string() }).nullable() })
+    const PATCH = (id: string) => `PATCH ${ISSUES_PATH}/${id}`
+    const ASSIGN = (id: string) => `PUT ${ISSUES_PATH}/${id}/assignee`
+
+    /** A server that applies the change it is sent, like the real one, so the refetched list shows it. */
+    function editableServer(extra: Record<string, () => Response> = {}) {
+      let items = ISSUES
+      const change = (id: string, changes: Partial<Issue>) => {
+        items = items.map((item) => (item.id === id ? { ...item, ...changes } : item))
+        return json(200, items.find((item) => item.id === id))
+      }
+      return fakeServer({
+        ...baseHandlers(),
+        [LIST]: () => json(200, { items, total: items.length }),
+        [PATCH(PLAN.id)]: (request) => change(PLAN.id, changesSchema.parse(request.body)),
+        [PATCH(LOGIN.id)]: (request) => change(LOGIN.id, changesSchema.parse(request.body)),
+        [ASSIGN(PLAN.id)]: (request) =>
+          change(PLAN.id, { assignee: assignSchema.parse(request.body).assignee === null ? null : MIA_ACTOR }),
+        [ASSIGN(LOGIN.id)]: () => change(LOGIN.id, { assignee: null }),
+        ...extra,
+      })
+    }
+
+    it('changes the priority of a card', async () => {
+      const server = editableServer()
+      renderRoutes(routes, ['/w/acme/issues'])
+      const user = userEvent.setup()
+      await screen.findByText('Write the plan')
+
+      await user.click(within(cardOf('Write the plan')).getByRole('combobox', { name: 'Priority' }))
+      await user.click(await screen.findByRole('option', { name: 'Urgent' }))
+
+      await waitFor(() => expect(server.calls(PATCH(PLAN.id))).toHaveLength(1))
+      expect(server.calls(PATCH(PLAN.id))[0]?.body).toEqual({ priority: 'urgent' })
+      await waitFor(() =>
+        expect(within(cardOf('Write the plan')).getByRole('combobox', { name: 'Priority' })).toHaveAttribute('title', 'Urgent'),
+      )
+    })
+
+    it('assigns a card to a member and unassigns it again', async () => {
+      const server = editableServer()
+      renderRoutes(routes, ['/w/acme/issues'])
+      const user = userEvent.setup()
+      await screen.findByText('Write the plan')
+
+      await user.click(within(cardOf('Write the plan')).getByRole('combobox', { name: 'Assignee' }))
+      await user.click(await screen.findByRole('option', { name: 'Mia' }))
+
+      await waitFor(() => expect(server.calls(ASSIGN(PLAN.id))).toHaveLength(1))
+      expect(server.calls(ASSIGN(PLAN.id))[0]?.body).toEqual({ assignee: { type: 'member', id: MIA.userId } })
+      await waitFor(() =>
+        expect(within(cardOf('Write the plan')).getByRole('combobox', { name: 'Assignee' })).toHaveTextContent('Mia'),
+      )
+
+      await user.click(within(cardOf('Fix the login')).getByRole('combobox', { name: 'Assignee' }))
+      await user.click(await screen.findByRole('option', { name: 'Unassigned' }))
+
+      await waitFor(() => expect(server.calls(ASSIGN(LOGIN.id))).toHaveLength(1))
+      expect(server.calls(ASSIGN(LOGIN.id))[0]?.body).toEqual({ assignee: null })
+    })
+
+    it('renames a card with the pencil: Enter saves, Escape and an unchanged title send nothing', async () => {
+      const server = editableServer()
+      renderRoutes(routes, ['/w/acme/issues'])
+      const user = userEvent.setup()
+      await screen.findByText('Write the plan')
+
+      await user.click(within(cardOf('Write the plan')).getByRole('button', { name: 'Edit title' }))
+      await user.type(screen.getByRole('textbox', { name: 'Title' }), '{Escape}')
+      expect(screen.queryByRole('textbox', { name: 'Title' })).not.toBeInTheDocument()
+
+      await user.click(within(cardOf('Write the plan')).getByRole('button', { name: 'Edit title' }))
+      await user.type(screen.getByRole('textbox', { name: 'Title' }), '{Enter}')
+      expect(server.calls(PATCH(PLAN.id))).toHaveLength(0)
+
+      await user.click(within(cardOf('Write the plan')).getByRole('button', { name: 'Edit title' }))
+      const field = screen.getByRole('textbox', { name: 'Title' })
+      await user.clear(field)
+      await user.type(field, '  Write the better plan  {Enter}')
+
+      await waitFor(() => expect(server.calls(PATCH(PLAN.id))).toHaveLength(1))
+      expect(server.calls(PATCH(PLAN.id))[0]?.body).toEqual({ title: 'Write the better plan' })
+      expect(await screen.findByRole('link', { name: 'Write the better plan' })).toBeInTheDocument()
+    })
+
+    it('does not save an empty title and says why', async () => {
+      const server = editableServer()
+      renderRoutes(routes, ['/w/acme/issues'])
+      const user = userEvent.setup()
+      await screen.findByText('Write the plan')
+
+      await user.click(within(cardOf('Write the plan')).getByRole('button', { name: 'Edit title' }))
+      await user.clear(screen.getByRole('textbox', { name: 'Title' }))
+      expect(screen.getByRole('alert')).toHaveTextContent('Enter a title')
+      await user.keyboard('{Enter}')
+
+      expect(server.calls(PATCH(PLAN.id))).toHaveLength(0)
+      expect(await screen.findByRole('link', { name: 'Write the plan' })).toBeInTheDocument()
+    })
+
+    it('keeps the old value and shows the error when the server refuses', async () => {
+      editableServer({
+        [PATCH(PLAN.id)]: () => problem(403, { detail: 'You cannot change this issue', code: 'issue.forbidden' }),
+      })
+      renderRoutes(routes, ['/w/acme/issues'])
+      const user = userEvent.setup()
+      await screen.findByText('Write the plan')
+
+      await user.click(within(cardOf('Write the plan')).getByRole('combobox', { name: 'Priority' }))
+      await user.click(await screen.findByRole('option', { name: 'Low' }))
+
+      expect(await screen.findByText('You cannot change this issue')).toBeInTheDocument()
+      expect(within(cardOf('Write the plan')).getByRole('combobox', { name: 'Priority' })).toHaveAttribute('title', 'High')
+    })
+
+    it('changes status, priority, assignee and title in a row of the list', async () => {
+      useIssueViewStore.setState({ view: 'list' })
+      const server = editableServer()
+      renderRoutes(routes, ['/w/acme/issues'])
+      const user = userEvent.setup()
+      const table = await screen.findByRole('table')
+      const row = () => {
+        const found = within(table).getByRole('link', { name: 'Write the plan' }).closest('tr')
+        if (found === null) {
+          throw new Error('No row')
+        }
+        return within(found)
+      }
+
+      await user.click(row().getByRole('combobox', { name: 'Status' }))
+      await user.click(await screen.findByRole('option', { name: 'Done' }))
+      await waitFor(() => expect(server.calls(PATCH(PLAN.id))).toHaveLength(1))
+      expect(server.calls(PATCH(PLAN.id))[0]?.body).toEqual({ status: 'done' })
+      await waitFor(() => expect(row().getByRole('combobox', { name: 'Status' })).toHaveTextContent('Done'))
+
+      await user.click(row().getByRole('combobox', { name: 'Priority' }))
+      await user.click(await screen.findByRole('option', { name: 'Low' }))
+      await waitFor(() => expect(server.calls(PATCH(PLAN.id))).toHaveLength(2))
+      expect(server.calls(PATCH(PLAN.id))[1]?.body).toEqual({ priority: 'low' })
+
+      await user.click(row().getByRole('combobox', { name: 'Assignee' }))
+      await user.click(await screen.findByRole('option', { name: 'Mia' }))
+      await waitFor(() => expect(server.calls(ASSIGN(PLAN.id))).toHaveLength(1))
+      expect(server.calls(ASSIGN(PLAN.id))[0]?.body).toEqual({ assignee: { type: 'member', id: MIA.userId } })
+
+      await user.click(row().getByRole('button', { name: 'Edit title' }))
+      await user.clear(screen.getByRole('textbox', { name: 'Title' }))
+      await user.type(screen.getByRole('textbox', { name: 'Title' }), 'Plan v2{Enter}')
+      await waitFor(() => expect(server.calls(PATCH(PLAN.id))).toHaveLength(3))
+      expect(server.calls(PATCH(PLAN.id))[2]?.body).toEqual({ title: 'Plan v2' })
     })
   })
 

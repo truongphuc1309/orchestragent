@@ -1,6 +1,7 @@
 import type { Member } from '@/features/workspace/schemas'
 import { Sparkles } from 'lucide-react'
 import type { Agent } from '@/features/agent/schemas'
+import { cn } from '@/shared/lib/utils'
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/shared/ui/select'
 import { decodeAssignee, encodeAssignee, UNASSIGNED } from '../assignee'
 import {
@@ -10,10 +11,12 @@ import {
   STATUSES,
   STATUS_LABEL,
   statusSchema,
+  type Actor,
   type AssigneeRef,
   type Priority,
   type Status,
 } from '../schemas'
+import { ActorAvatar } from './ActorAvatar'
 import { PriorityIcon } from './PriorityIcon'
 import { StatusLozenge } from './StatusLozenge'
 
@@ -23,9 +26,14 @@ interface FieldProps<T> {
   label: string
   disabled?: boolean
   className?: string
+  /** For cards and table rows: a small trigger without a border until the pointer is over it. */
+  compact?: boolean
 }
 
-export function StatusSelect({ value, onChange, label, disabled, className }: FieldProps<Status>) {
+/** Classes of the trigger of a compact field. */
+const COMPACT_TRIGGER = 'border-transparent px-1.5 hover:bg-accent dark:bg-transparent'
+
+export function StatusSelect({ value, onChange, label, disabled, className, compact }: FieldProps<Status>) {
   return (
     <Select
       value={value}
@@ -37,7 +45,11 @@ export function StatusSelect({ value, onChange, label, disabled, className }: Fi
         }
       }}
     >
-      <SelectTrigger aria-label={label} className={className}>
+      <SelectTrigger
+        aria-label={label}
+        size={compact ? 'sm' : 'default'}
+        className={cn(compact && COMPACT_TRIGGER, className)}
+      >
         <SelectValue>
           <StatusLozenge status={value} />
         </SelectValue>
@@ -53,7 +65,8 @@ export function StatusSelect({ value, onChange, label, disabled, className }: Fi
   )
 }
 
-export function PrioritySelect({ value, onChange, label, disabled, className }: FieldProps<Priority>) {
+/** A compact priority field shows only the icon (the menu has the words); the name stays in the tooltip. */
+export function PrioritySelect({ value, onChange, label, disabled, className, compact }: FieldProps<Priority>) {
   return (
     <Select
       value={value}
@@ -65,10 +78,15 @@ export function PrioritySelect({ value, onChange, label, disabled, className }: 
         }
       }}
     >
-      <SelectTrigger aria-label={label} className={className}>
+      <SelectTrigger
+        aria-label={label}
+        title={compact ? PRIORITY_LABEL[value] : undefined}
+        size={compact ? 'sm' : 'default'}
+        className={cn(compact && COMPACT_TRIGGER, className)}
+      >
         <SelectValue>
           <PriorityIcon priority={value} decorative />
-          {PRIORITY_LABEL[value]}
+          {!compact && PRIORITY_LABEL[value]}
         </SelectValue>
       </SelectTrigger>
       <SelectContent>
@@ -95,13 +113,17 @@ export function AssigneeSelect({
   agents,
   disabled,
   className,
+  compact,
   currentName,
+  currentActor,
 }: FieldProps<AssigneeRef | null> & {
   members: readonly Member[]
   /** Active agents; archived ones cannot be given work, so they are not offered. */
   agents: readonly Agent[]
   /** Name of the current assignee as the issue reports it; shown while the lists are still loading. */
   currentName?: string
+  /** The current assignee as the issue reports it; a compact field shows its avatar. */
+  currentActor?: Actor | null
 }) {
   const shown = (() => {
     if (value === null) {
@@ -120,10 +142,18 @@ export function AssigneeSelect({
       disabled={disabled}
       onValueChange={(next) => onChange(decodeAssignee(next))}
     >
-      <SelectTrigger aria-label={label} className={className}>
+      <SelectTrigger
+        aria-label={label}
+        size={compact ? 'sm' : 'default'}
+        className={cn(compact && `${COMPACT_TRIGGER} min-w-0 max-w-40`, className)}
+      >
         <SelectValue>
-          {value?.type === 'agent' && <Sparkles className="text-lozenge-discovery-foreground" aria-hidden />}
-          {shown}
+          {compact && currentActor ? (
+            <ActorAvatar actor={currentActor} />
+          ) : (
+            value?.type === 'agent' && <Sparkles className="text-lozenge-discovery-foreground" aria-hidden />
+          )}
+          <span className={cn('truncate', value === null && compact && 'text-muted-foreground')}>{shown}</span>
         </SelectValue>
       </SelectTrigger>
       <SelectContent>

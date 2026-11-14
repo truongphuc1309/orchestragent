@@ -57,6 +57,15 @@ describe('project page', () => {
     expect(screen.queryByRole('button', { name: 'Project' })).not.toBeInTheDocument()
   })
 
+  it('does not name the project on the cards of its own board', async () => {
+    fakeServer(handlers(WEB))
+    renderRoutes(routes, ['/w/acme/projects/WEB'])
+
+    const card = (await screen.findByRole('link', { name: 'Fix the login' })).closest('li')
+    expect(card).not.toBeNull()
+    expect(card).not.toHaveTextContent('Web app')
+  })
+
   it('keeps the other saved filters, and leaves the Issues page project choice alone', async () => {
     useIssueViewStore.setState({
       filtersByWorkspace: { [ACME.id]: { ...NO_FILTERS, projects: [API.id], statuses: ['todo'] } },

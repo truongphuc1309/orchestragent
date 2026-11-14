@@ -55,7 +55,8 @@ export function ProjectIssuesPage() {
 
   const data = project.data
   return (
-    <div className="flex flex-col gap-2">
+    // As tall as the page area, so the board below the filters fills what is left of the screen.
+    <div className="flex h-full flex-col gap-2">
       {back}
       <IssuesView
         // A new project means new filters and a new board: start the view afresh.

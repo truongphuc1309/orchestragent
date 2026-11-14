@@ -6,6 +6,7 @@ import { useProjects } from '@/features/project/hooks'
 import type { Project } from '@/features/project/schemas'
 import { useMembers } from '@/features/workspace/hooks'
 import { useWorkspace } from '@/features/workspace/workspaceContext'
+import { cn } from '@/shared/lib/utils'
 import { Button } from '@/shared/ui/button'
 import { Skeleton } from '@/shared/ui/skeleton'
 import { Tabs, TabsList, TabsTrigger } from '@/shared/ui/tabs'
@@ -55,7 +56,9 @@ export function IssuesView({ project, heading, notice }: Props) {
   const shownFilters = project ? { ...filters, projects: [] } : filters
 
   return (
-    <div className="flex flex-col gap-4">
+    // Fills the room the page leaves. The board must not grow with its cards (that would push the columns past the
+    // screen instead of scrolling them), so it may shrink to that room; a list just grows and the page scrolls.
+    <div className={cn('flex flex-1 flex-col gap-4', view === 'board' && 'min-h-0')}>
       <div className="flex items-center gap-3">
         <div className="flex min-w-0 flex-1 flex-col gap-1">{heading}</div>
         {canCreate && (
@@ -124,6 +127,7 @@ export function IssuesView({ project, heading, notice }: Props) {
               workspaceId={workspace.id}
               workspaceSlug={workspace.slug}
               issues={issues.data.items}
+              projectNames={project ? undefined : projectNames}
               onCreate={canCreate ? (status) => setCreating({ status }) : undefined}
             />
           ) : issues.data.items.length === 0 ? (
@@ -136,6 +140,7 @@ export function IssuesView({ project, heading, notice }: Props) {
             </p>
           ) : (
             <IssueList
+              workspaceId={workspace.id}
               issues={issues.data.items}
               workspaceSlug={workspace.slug}
               projectNames={project ? undefined : projectNames}

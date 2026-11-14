@@ -17,6 +17,7 @@ import { toast } from 'sonner'
 import { z } from 'zod'
 import { messageOf } from '@/shared/api/errors'
 import { boardColumns, columnOf, dropInto, moveAcross, targetOf, type BoardColumns } from '../board'
+import { useIssueEditing } from '../editing'
 import { useMoveIssue } from '../hooks'
 import { BOARD_STATUSES, statusSchema, type Issue, type Status } from '../schemas'
 import { BoardColumn, COLUMN_ID_PREFIX } from './BoardColumn'
@@ -28,6 +29,8 @@ interface Props {
   workspaceId: string
   workspaceSlug: string
   issues: Issue[]
+  /** Project names by project ID; given when the issues come from several projects (each card names its project). */
+  projectNames?: ReadonlyMap<string, string>
   /** Missing when no issue can be created here (an archived project): the columns then have no "+" button. */
   onCreate?: (status: Status) => void
 }
@@ -49,8 +52,9 @@ interface Arrangement {
 const MEASURING = { droppable: { strategy: MeasuringStrategy.Always } }
 
 /** The kanban board: six columns, cards dragged with the mouse, touch or keyboard. */
-export function IssueBoard({ workspaceId, workspaceSlug, issues, onCreate }: Props) {
+export function IssueBoard({ workspaceId, workspaceSlug, issues, projectNames, onCreate }: Props) {
   const move = useMoveIssue(workspaceId)
+  const editing = useIssueEditing(workspaceId)
   const [dragged, setDragged] = useState<Issue | null>(null)
   const [arrangement, setArrangement] = useState<Arrangement | null>(null)
   const sensors = useSensors(
@@ -137,19 +141,29 @@ export function IssueBoard({ workspaceId, workspaceSlug, issues, onCreate }: Pro
       onDragEnd={onDragEnd}
       onDragCancel={onDragCancel}
     >
-      <div className="relative flex items-start gap-3 overflow-x-auto pb-4">
+      {/* As tall as the room the page leaves (at least 20rem): the columns stretch to it and scroll inside. */}
+      <div className="relative flex min-h-80 flex-1 items-stretch gap-3 overflow-x-auto pb-2">
         {BOARD_STATUSES.map((status) => (
           <BoardColumn
             key={status}
             status={status}
             issues={shown[status].flatMap((id) => byId.get(id) ?? [])}
             workspaceSlug={workspaceSlug}
+            projectNames={projectNames}
+            editing={editing}
             onCreate={onCreate}
           />
         ))}
       </div>
       <DragOverlay>
-        {dragged && <IssueCardView issue={dragged} workspaceSlug={workspaceSlug} dragging />}
+        {dragged && (
+          <IssueCardView
+            issue={dragged}
+            workspaceSlug={workspaceSlug}
+            projectName={projectNames?.get(dragged.projectId)}
+            dragging
+          />
+        )}
       </DragOverlay>
     </DndContext>
   )
