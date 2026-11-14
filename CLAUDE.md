@@ -30,6 +30,11 @@ projects live in the `issue` context, not a new one.
 | 12 | Login rate limit, dev seed data, Playwright E2E, docs | `88090d2` |
 | 13 | Projects, per-project issue keys (changes the daemon API: needs human review) | not committed |
 
+After step 13 (uncommitted, frontend only): the Home page was removed and "My Issues" became the first sidebar entry and the
+landing page (see "No home page"). Frontend 442 tests (35 files), `typecheck`, `lint`, `build` clean; 2 break-the-rule
+checks (no redirect, wrong order) failed the right tests. By hand on the dev app: `/w/home-check` redirected to
+`/issues`, "My Issues" first and marked. Backend untouched, so the Gradle build was not run.
+
 Last full run (step 13): `./gradlew build` 952 tests (829 backend, 123 daemon; the real-Claude smoke test skipped), frontend 429 tests (34 files), E2E 1 test passing;
 `typecheck`, `lint`, `build` clean. 5 break-the-rule checks (one needed a new test first, see PLAN.md step 13). By hand
 on the dev database with old data (a `pg_dump` was taken first, outside the repo): the migration gave each workspace
@@ -136,6 +141,17 @@ processes in this harness can only be killed hard; `DaemonTest` covers it.
   later, after the drag has ended). A card's sortable `data.status` is the column showing it, not `issue.status`.
   To measure it in the browser pane, widen the viewport first (`resize_window`): off-screen pointer events trigger
   dnd-kit auto-scroll. A hidden pane never finishes Web Animations, so the drop overlay stays there.
+
+## No home page (decided by the user, after step 13)
+
+- A Home page (needs-you lists, agent activity, setup checklist) was built and then **removed on purpose**: the user
+  found it unnecessary. Do not bring it back unasked.
+- Landing: the workspace address `/w/:slug` redirects (replace) to `/w/:slug/issues`, so signing in, switching workspace
+  and the root redirect all end on the issues page. The sidebar starts with **My Issues** (was "Issues", the page
+  title is "My Issues" too), then Inbox. The page is still every issue of the workspace, not filtered to the user.
+  The issue page's back link still says "Issues".
+- Tests that used the Home heading to prove which workspace opened now call `expectWorkspaceOpen(name)` in
+  `WorkspaceNavigation.test.tsx` (the switcher names the workspace; the heading alone does not change on a switch).
 
 ## Hardening, seed data and E2E (step 12)
 

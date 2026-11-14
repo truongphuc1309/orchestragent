@@ -14,7 +14,6 @@ import { AcceptInvitationPage } from '@/features/workspace/pages/AcceptInvitatio
 import { MembersPage } from '@/features/workspace/pages/MembersPage'
 import { OnboardingPage } from '@/features/workspace/pages/OnboardingPage'
 import { RootRedirectPage } from '@/features/workspace/pages/RootRedirectPage'
-import { WorkspaceHomePage } from '@/features/workspace/pages/WorkspaceHomePage'
 import { WorkspaceLayout } from '@/features/workspace/pages/WorkspaceLayout'
 import { NotFoundPage } from './NotFoundPage'
 import { RouteErrorPage } from './RouteErrorPage'
@@ -33,7 +32,7 @@ export const routes: RouteObject[] = [
         path: '/w/:slug',
         element: <WorkspaceLayout />,
         children: [
-          { index: true, element: <WorkspaceHomePage /> },
+          { index: true, element: <Navigate to="issues" replace /> },
           { path: 'inbox', element: <InboxPage /> },
           { path: 'issues', element: <IssuesPage /> },
           { path: 'issues/:issueKey', element: <IssueDetailPage /> },

@@ -55,7 +55,7 @@ describe('LoginPage', () => {
 
     await user.type(screen.getByRole('textbox', { name: /6-digit code/i }), '123456')
 
-    expect(await screen.findByRole('heading', { name: 'Acme' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'My Issues' })).toBeInTheDocument()
     expect(server.calls('POST /api/auth/verify')[0]?.body).toEqual({ email: 'ada@example.com', code: '123456' })
   })
 
@@ -131,6 +131,6 @@ describe('LoginPage', () => {
     fakeServer({ 'GET /api/me': () => json(200, ADA), 'GET /api/workspaces': workspaces })
     renderRoutes(routes, ['/login'])
 
-    expect(await screen.findByRole('heading', { name: 'Acme' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'My Issues' })).toBeInTheDocument()
   })
 })

@@ -9,6 +9,13 @@ import { useLastWorkspace } from '../lastWorkspace'
 
 const NEW_WORKSPACE = { ...ACME, id: '0198f1c0-0000-7000-8000-0000000000a3', name: 'Initech', slug: 'initech' }
 
+/** A workspace opens on "My Issues"; the switcher at the top of the sidebar names the workspace that is open. */
+async function expectWorkspaceOpen(name: string) {
+  await screen.findByRole('heading', { name: 'My Issues' })
+  // Switching workspaces keeps the same heading on screen, so wait for the name instead of reading it once.
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Switch workspace' })).toHaveTextContent(name))
+}
+
 describe('workspace navigation', () => {
   beforeEach(() => {
     document.cookie = 'XSRF-TOKEN=test-token; path=/'
@@ -31,8 +38,8 @@ describe('workspace navigation', () => {
       fakeServer({ 'GET /api/me': () => json(200, ADA), 'GET /api/workspaces': () => json(200, [ACME, GLOBEX]) })
       const { router } = renderRoutes(routes, ['/'])
 
-      expect(await screen.findByRole('heading', { name: 'Acme' })).toBeInTheDocument()
-      expect(router.state.location.pathname).toBe('/w/acme')
+      await expectWorkspaceOpen('Acme')
+      expect(router.state.location.pathname).toBe('/w/acme/issues')
     })
 
     it('returns to the workspace the user used last', async () => {
@@ -40,8 +47,8 @@ describe('workspace navigation', () => {
       fakeServer({ 'GET /api/me': () => json(200, ADA), 'GET /api/workspaces': () => json(200, [ACME, GLOBEX]) })
       const { router } = renderRoutes(routes, ['/'])
 
-      expect(await screen.findByRole('heading', { name: 'Globex' })).toBeInTheDocument()
-      expect(router.state.location.pathname).toBe('/w/globex')
+      await expectWorkspaceOpen('Globex')
+      expect(router.state.location.pathname).toBe('/w/globex/issues')
     })
 
     it('ignores a remembered workspace the user no longer belongs to', async () => {
@@ -49,8 +56,8 @@ describe('workspace navigation', () => {
       fakeServer({ 'GET /api/me': () => json(200, ADA), 'GET /api/workspaces': () => json(200, [ACME]) })
       const { router } = renderRoutes(routes, ['/'])
 
-      expect(await screen.findByRole('heading', { name: 'Acme' })).toBeInTheDocument()
-      expect(router.state.location.pathname).toBe('/w/acme')
+      await expectWorkspaceOpen('Acme')
+      expect(router.state.location.pathname).toBe('/w/acme/issues')
     })
 
     it('offers a retry when the workspaces cannot be loaded', async () => {
@@ -66,7 +73,7 @@ describe('workspace navigation', () => {
       healthy = true
       await user.click(screen.getByRole('button', { name: 'Try again' }))
 
-      expect(await screen.findByRole('heading', { name: 'Acme' })).toBeInTheDocument()
+      await expectWorkspaceOpen('Acme')
     })
   })
 
@@ -76,11 +83,24 @@ describe('workspace navigation', () => {
       renderRoutes(routes, ['/w/acme'])
 
       const nav = await screen.findByRole('navigation', { name: 'Workspace' })
-      expect(within(nav).getByRole('link', { name: 'Home' })).toHaveAttribute('href', '/w/acme')
+      expect(within(nav).getByRole('link', { name: 'My Issues' })).toHaveAttribute('href', '/w/acme/issues')
       expect(within(nav).getByRole('link', { name: 'Members' })).toHaveAttribute('href', '/w/acme/settings/members')
       expect(within(nav).getByRole('link', { name: 'API tokens' })).toHaveAttribute('href', '/w/acme/settings/tokens')
-      expect(within(nav).getByRole('link', { name: 'Home' })).toHaveClass('bg-selected')
+      // The workspace address redirects to the issues page; the entry is marked once it got there.
+      await waitFor(() => expect(within(nav).getByRole('link', { name: 'My Issues' })).toHaveClass('bg-selected'))
       expect(within(nav).getByRole('link', { name: 'Members' })).not.toHaveClass('bg-selected')
+    })
+
+    it('has no home page: "My Issues" comes first and the workspace address opens it', async () => {
+      fakeServer({ 'GET /api/me': () => json(200, ADA), 'GET /api/workspaces': () => json(200, [ACME]) })
+      const { router } = renderRoutes(routes, ['/w/acme'])
+
+      const nav = await screen.findByRole('navigation', { name: 'Workspace' })
+      expect(within(nav).queryByRole('link', { name: 'Home' })).not.toBeInTheDocument()
+      expect(within(nav).getAllByRole('link')[0]).toHaveAccessibleName('My Issues')
+      await waitFor(() => expect(router.state.location.pathname).toBe('/w/acme/issues'))
+      // Going back must not trap the user in a redirect.
+      expect(router.state.historyAction).toBe('REPLACE')
     })
 
     it('says so when the workspace does not exist or belongs to someone else', async () => {
@@ -104,7 +124,7 @@ describe('workspace navigation', () => {
       fakeServer({ 'GET /api/me': () => json(200, ADA), 'GET /api/workspaces': () => json(200, [ACME, GLOBEX]) })
       renderRoutes(routes, ['/w/globex'])
 
-      await screen.findByRole('heading', { name: 'Globex' })
+      await expectWorkspaceOpen('Globex')
       await waitFor(() => expect(useLastWorkspace.getState().lastSlug).toBe('globex'))
     })
 
@@ -135,8 +155,8 @@ describe('workspace navigation', () => {
 
       await user.click(screen.getByRole('menuitem', { name: /Globex/ }))
 
-      expect(await screen.findByRole('heading', { name: 'Globex' })).toBeInTheDocument()
-      expect(router.state.location.pathname).toBe('/w/globex')
+      await expectWorkspaceOpen('Globex')
+      expect(router.state.location.pathname).toBe('/w/globex/issues')
     })
 
     it('creates a workspace from the menu and opens it', async () => {
@@ -157,8 +177,8 @@ describe('workspace navigation', () => {
       await user.type(await screen.findByLabelText('Workspace name'), '  Initech ')
       await user.click(screen.getByRole('button', { name: 'Create workspace' }))
 
-      expect(await screen.findByRole('heading', { name: 'Initech' })).toBeInTheDocument()
-      expect(router.state.location.pathname).toBe('/w/initech')
+      await expectWorkspaceOpen('Initech')
+      expect(router.state.location.pathname).toBe('/w/initech/issues')
       expect(server.calls('POST /api/workspaces')[0]?.body).toEqual({ name: 'Initech' })
       expect(server.calls('POST /api/workspaces')[0]?.headers.get('X-XSRF-TOKEN')).toBe('test-token')
     })
@@ -182,8 +202,8 @@ describe('workspace navigation', () => {
       await user.type(await screen.findByLabelText('Workspace name'), 'Acme')
       await user.click(screen.getByRole('button', { name: 'Create workspace' }))
 
-      expect(await screen.findByRole('heading', { name: 'Acme' })).toBeInTheDocument()
-      expect(router.state.location.pathname).toBe('/w/acme')
+      await expectWorkspaceOpen('Acme')
+      expect(router.state.location.pathname).toBe('/w/acme/issues')
       expect(server.calls('POST /api/workspaces')[0]?.body).toEqual({ name: 'Acme' })
     })
 
@@ -238,8 +258,8 @@ describe('workspace navigation', () => {
       expect(screen.getByText(/Invited by Grace/)).toBeInTheDocument()
       await user.click(screen.getByRole('button', { name: 'Accept' }))
 
-      expect(await screen.findByRole('heading', { name: 'Globex' })).toBeInTheDocument()
-      expect(router.state.location.pathname).toBe('/w/globex')
+      await expectWorkspaceOpen('Globex')
+      expect(router.state.location.pathname).toBe('/w/globex/issues')
       expect(server.calls('POST /api/invitations/0198f1c0-0000-7000-8000-0000000000b1/accept')).toHaveLength(1)
     })
   })
@@ -265,8 +285,8 @@ describe('workspace navigation', () => {
       expect(screen.getByText(/signed in as ada@example.com/)).toBeInTheDocument()
       await user.click(screen.getByRole('button', { name: 'Accept' }))
 
-      expect(await screen.findByRole('heading', { name: 'Acme' })).toBeInTheDocument()
-      expect(router.state.location.pathname).toBe('/w/acme')
+      await expectWorkspaceOpen('Acme')
+      expect(router.state.location.pathname).toBe('/w/acme/issues')
     })
 
     it('explains when the invitation is not available to this account', async () => {

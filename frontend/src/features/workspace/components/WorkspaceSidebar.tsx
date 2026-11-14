@@ -1,4 +1,4 @@
-import { BarChart3, Bot, CircleDot, FolderKanban, Home, Inbox, KeyRound, Server, Users, type LucideIcon } from 'lucide-react'
+import { BarChart3, Bot, CircleDot, FolderKanban, Inbox, KeyRound, Server, Users, type LucideIcon } from 'lucide-react'
 import { NavLink } from 'react-router'
 import { useUnreadCount } from '@/features/inbox/hooks'
 import { useProjects } from '@/features/project/hooks'
@@ -64,14 +64,11 @@ export function WorkspaceSidebar({ current, workspaces }: { current: Workspace; 
     <aside className="hidden w-60 shrink-0 flex-col gap-4 border-r bg-sidebar p-2 md:flex">
       <WorkspaceSwitcher current={current} workspaces={workspaces} />
       <nav aria-label="Workspace" className="flex flex-col gap-0.5">
-        <SidebarLink to={base} icon={Home} end>
-          Home
+        <SidebarLink to={`${base}/issues`} icon={CircleDot}>
+          My Issues
         </SidebarLink>
         <SidebarLink to={`${base}/inbox`} icon={Inbox} badge={badge}>
           Inbox
-        </SidebarLink>
-        <SidebarLink to={`${base}/issues`} icon={CircleDot}>
-          Issues
         </SidebarLink>
         <SidebarLink to={`${base}/projects`} icon={FolderKanban} end>
           Projects
