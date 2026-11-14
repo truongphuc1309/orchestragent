@@ -6,6 +6,7 @@ import { RuntimesPage } from '@/features/agent/pages/RuntimesPage'
 import { InboxPage } from '@/features/inbox/pages/InboxPage'
 import { IssueDetailPage } from '@/features/issue/pages/IssueDetailPage'
 import { IssuesPage } from '@/features/issue/pages/IssuesPage'
+import { ProfilePage } from '@/features/profile/pages/ProfilePage'
 import { ProjectIssuesPage } from '@/features/project/pages/ProjectIssuesPage'
 import { ProjectsPage } from '@/features/project/pages/ProjectsPage'
 import { TokensPage } from '@/features/tokens/pages/TokensPage'
@@ -44,6 +45,7 @@ export const routes: RouteObject[] = [
           { path: 'settings', element: <Navigate to="members" replace /> },
           { path: 'settings/members', element: <MembersPage /> },
           { path: 'settings/tokens', element: <TokensPage /> },
+          { path: 'settings/profile', element: <ProfilePage /> },
         ],
       },
     ],

@@ -147,7 +147,7 @@ final class Fakes {
         final Map<UUID, UserView> byId = new HashMap<>();
 
         UserView add(String name, String email) {
-            UserView user = new UserView(UUID.randomUUID(), email, name);
+            UserView user = new UserView(UUID.randomUUID(), email, name, null);
             byId.put(user.id(), user);
             return user;
         }

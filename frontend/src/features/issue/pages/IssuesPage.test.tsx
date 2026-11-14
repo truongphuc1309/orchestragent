@@ -19,7 +19,7 @@ const ISSUES: Issue[] = [
     title: 'Fix the login',
     status: 'todo',
     position: 512,
-    assignee: { type: 'member', id: MIA.userId, name: 'Mia' },
+    assignee: { type: 'member', id: MIA.userId, name: 'Mia', avatarUrl: null },
   }),
   issue({ id: issueId(3), number: 3, title: 'Ship it', status: 'done', position: 1024, priority: 'urgent' }),
   issue({ id: issueId(4), number: 4, title: 'Dropped idea', status: 'cancelled', position: 1024 }),
@@ -367,7 +367,7 @@ describe('issues page', () => {
         number: 9,
         title: 'New work',
         priority: 'high',
-        assignee: { type: 'member', id: MIA.userId, name: 'Mia' },
+        assignee: { type: 'member', id: MIA.userId, name: 'Mia', avatarUrl: null },
       })
       let items = ISSUES
       const server = fakeServer({
@@ -434,7 +434,7 @@ describe('issues page', () => {
         id: issueId(9),
         number: 9,
         title: 'For the bot',
-        assignee: { type: 'agent', id: agentId(1), name: 'Builder' },
+        assignee: { type: 'agent', id: agentId(1), name: 'Builder', avatarUrl: null },
       })
       const server = fakeServer({ ...baseHandlers(), [`POST ${ISSUES_PATH}`]: () => json(201, created) })
       renderRoutes(routes, ['/w/acme/issues'])

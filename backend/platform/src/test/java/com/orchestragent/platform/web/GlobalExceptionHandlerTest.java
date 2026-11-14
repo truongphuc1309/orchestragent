@@ -94,6 +94,22 @@ class GlobalExceptionHandlerTest {
                 .andExpect(jsonPath("$.detail").value("An unexpected error occurred"));
     }
 
+    @Test
+    void unavailableStorageMapsTo503WithoutDetails() throws Exception {
+        mvc.perform(get("/storage-down"))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.code").value("storage.unavailable"))
+                .andExpect(jsonPath("$.detail").value(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("9000"))));
+    }
+
+    @Test
+    void tooLargeUploadMapsTo413() throws Exception {
+        mvc.perform(get("/too-large"))
+                .andExpect(status().is(413))
+                .andExpect(jsonPath("$.status").value(413))
+                .andExpect(jsonPath("$.code").value("upload.too_large"));
+    }
+
     @RestController
     static class ThrowingController {
 
@@ -136,6 +152,17 @@ class GlobalExceptionHandlerTest {
         @GetMapping("/optimistic")
         void optimistic() {
             throw new org.springframework.orm.ObjectOptimisticLockingFailureException("agent_tasks", "some-id");
+        }
+
+        @GetMapping("/storage-down")
+        void storageDown() {
+            throw new com.orchestragent.platform.storage.StorageUnavailableException(
+                    "Object storage is not available", new java.io.IOException("Connection refused: localhost:9000"));
+        }
+
+        @GetMapping("/too-large")
+        void tooLarge() {
+            throw new org.springframework.web.multipart.MaxUploadSizeExceededException(2 * 1024 * 1024);
         }
 
         @GetMapping("/boom")

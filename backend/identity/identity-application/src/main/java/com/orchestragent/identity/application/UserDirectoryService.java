@@ -50,6 +50,6 @@ class UserDirectoryService implements UserDirectory {
     }
 
     private static UserView toView(User user) {
-        return new UserView(user.id().value(), user.email().value(), user.name());
+        return Profiles.userView(user);
     }
 }

@@ -7,6 +7,7 @@ import jakarta.persistence.Table;
 import java.time.Instant;
 import java.util.UUID;
 
+/** Read model of a user row. Rows are inserted and changed with SQL in {@link UserRepositoryAdapter}. */
 @Entity
 @Table(schema = "identity", name = "users")
 class UserEntity {
@@ -20,17 +21,19 @@ class UserEntity {
     @Column(nullable = false)
     private String name;
 
+    @Column(nullable = false)
+    private String bio;
+
+    @Column(name = "avatar_id")
+    private UUID avatarId;
+
+    @Column(name = "avatar_type")
+    private String avatarType;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
     protected UserEntity() {
-    }
-
-    UserEntity(UUID id, String email, String name, Instant createdAt) {
-        this.id = id;
-        this.email = email;
-        this.name = name;
-        this.createdAt = createdAt;
     }
 
     UUID getId() {
@@ -43,6 +46,18 @@ class UserEntity {
 
     String getName() {
         return name;
+    }
+
+    String getBio() {
+        return bio;
+    }
+
+    UUID getAvatarId() {
+        return avatarId;
+    }
+
+    String getAvatarType() {
+        return avatarType;
     }
 
     Instant getCreatedAt() {

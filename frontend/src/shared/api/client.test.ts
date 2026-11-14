@@ -44,6 +44,20 @@ describe('apiRequest', () => {
     expect(request?.body).toEqual({ name: 'x' })
   })
 
+  it('sends a FormData body as it is, so the browser sets the multipart boundary', async () => {
+    document.cookie = 'XSRF-TOKEN=abc123; path=/'
+    const server = fakeServer({ 'PUT /api/upload': () => noContent() })
+    const form = new FormData()
+    form.append('file', new File(['png'], 'a.png', { type: 'image/png' }))
+
+    await apiRequest('/api/upload', { method: 'PUT', body: form, schema: z.undefined() })
+
+    const [request] = server.requests
+    expect(request?.rawBody).toBe(form)
+    expect(request?.headers.has('Content-Type')).toBe(false)
+    expect(request?.headers.get('X-XSRF-TOKEN')).toBe('abc123')
+  })
+
   it('fetches a CSRF cookie first when there is none yet', async () => {
     const server = fakeServer({
       'GET /api/health': () => {

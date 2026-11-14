@@ -15,9 +15,10 @@ public final class Views {
 
     /**
      * A member, an agent or the system, with a display name. {@code id} is null for the system. The name is
-     * a placeholder such as "Unknown user" when the account can no longer be found.
+     * a placeholder such as "Unknown user" when the account can no longer be found. {@code avatarUrl} is the
+     * picture of a member who has one, null otherwise (agents and the system never have one).
      */
-    public record ActorView(ActorType type, UUID id, String name) {
+    public record ActorView(ActorType type, UUID id, String name, String avatarUrl) {
     }
 
     /** {@code key} is {@code WEB-12}: the key of the project and {@code number}. */

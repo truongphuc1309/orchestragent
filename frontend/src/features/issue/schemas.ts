@@ -38,6 +38,8 @@ export const actorSchema = z.object({
   type: actorTypeSchema,
   id: z.uuid().nullable(),
   name: z.string(),
+  // Only members can have a picture; agents and the system always have null.
+  avatarUrl: z.string().nullable(),
 })
 export type Actor = z.infer<typeof actorSchema>
 

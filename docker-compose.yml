@@ -30,5 +30,25 @@ services:
       timeout: 5s
       retries: 10
 
+  # S3-compatible object storage for uploaded files (avatars). The backend creates its bucket on the first upload.
+  # The official MinIO images are no longer published, so this is RustFS, which speaks the same S3 API.
+  rustfs:
+    image: rustfs/rustfs:1.0.5
+    container_name: orchestragent-rustfs
+    environment:
+      RUSTFS_ACCESS_KEY: ${STORAGE_ACCESS_KEY:?Set STORAGE_ACCESS_KEY in .env}
+      RUSTFS_SECRET_KEY: ${STORAGE_SECRET_KEY:?Set STORAGE_SECRET_KEY in .env}
+    ports:
+      - "127.0.0.1:9000:9000" # S3 API
+      - "127.0.0.1:9001:9001" # Web console (sign in with the access key and secret key)
+    volumes:
+      - rustfs-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:9000/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
 volumes:
   postgres-data:
+  rustfs-data:

@@ -21,7 +21,7 @@ const ISSUE: Issue = issue({
   description: 'Users cannot sign in.\nSecond line.',
   status: 'in_progress',
   priority: 'high',
-  assignee: { type: 'member', id: MIA.userId, name: 'Mia' },
+  assignee: { type: 'member', id: MIA.userId, name: 'Mia', avatarUrl: null },
 })
 const COMMENTS = [
   comment({ id: '0198f1c0-0000-7000-8000-0000000002a1', issueId: ISSUE.id, body: 'First thoughts' }),
@@ -29,7 +29,7 @@ const COMMENTS = [
     id: '0198f1c0-0000-7000-8000-0000000002a2',
     issueId: ISSUE.id,
     body: 'The agent finished',
-    author: { type: 'system', id: null, name: 'System' },
+    author: { type: 'system', id: null, name: 'System', avatarUrl: null },
   }),
 ]
 
@@ -278,7 +278,7 @@ describe('issue detail page', () => {
       const server = fakeServer(
         handlers({
           [`PUT ${BASE}/${ISSUE.id}/assignee`]: () =>
-            json(200, { ...ISSUE, assignee: { type: 'agent', id: BUILDER.id, name: 'Builder' } }),
+            json(200, { ...ISSUE, assignee: { type: 'agent', id: BUILDER.id, name: 'Builder', avatarUrl: null } }),
         }),
       )
       await openIssue()
@@ -295,7 +295,7 @@ describe('issue detail page', () => {
     })
 
     it('shows an agent that is already assigned, even one that has since been archived', async () => {
-      const archivedBot: Actor = { type: 'agent', id: agentId(7), name: 'Old bot' }
+      const archivedBot: Actor = { type: 'agent', id: agentId(7), name: 'Old bot', avatarUrl: null }
       fakeServer(handlers({ [`GET ${BASE}/key/ACM-7`]: () => json(200, { ...ISSUE, assignee: archivedBot }) }))
       await openIssue()
 
@@ -307,7 +307,7 @@ describe('issue detail page', () => {
       const server = fakeServer(
         handlers({
           [`PUT ${BASE}/${ISSUE.id}/assignee`]: (request) =>
-            json(200, { ...ISSUE, assignee: clearsAssignee(request.body) ? null : { type: 'member', id: ADA.id, name: 'ada' } }),
+            json(200, { ...ISSUE, assignee: clearsAssignee(request.body) ? null : { type: 'member', id: ADA.id, name: 'ada', avatarUrl: null } }),
         }),
       )
       await openIssue()
@@ -394,7 +394,7 @@ describe('issue detail page', () => {
   })
 
   describe('deleting', () => {
-    const OTHERS_ISSUE: Issue = { ...ISSUE, creator: { type: 'member', id: MIA.userId, name: 'Mia' } }
+    const OTHERS_ISSUE: Issue = { ...ISSUE, creator: { type: 'member', id: MIA.userId, name: 'Mia', avatarUrl: null } }
     const asMember = { ...ACME, role: 'member' as const }
     const asAdmin = { ...ACME, role: 'admin' as const }
 

@@ -183,7 +183,7 @@ final class Fakes {
         final Map<UUID, UserView> byId = new HashMap<>();
 
         UserView add(String name) {
-            UserView user = new UserView(UUID.randomUUID(), name.toLowerCase() + "@example.com", name);
+            UserView user = new UserView(UUID.randomUUID(), name.toLowerCase() + "@example.com", name, null);
             byId.put(user.id(), user);
             return user;
         }

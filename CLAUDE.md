@@ -8,11 +8,10 @@ that the code alone does not explain.
 
 ## Status
 
-Steps 0 to 12 of `PLAN.md` are implemented and **committed by the human**. **Step 13 (projects inside a workspace,
-issue keys from the project key) is implemented and not committed yet** (waiting for the human's review; it changes
-the daemon protocol, `IssueInfo` gained `key`). Its decisions (chosen by the user): project key fixed after creation,
-any member creates projects, a page per project plus a Project filter on the Issues page, archive instead of delete;
-projects live in the `issue` context, not a new one.
+Steps 0 to 13 of `PLAN.md` (and the Home page removal) are implemented and **committed by the human**. **Step 14
+(editable profile: avatar, name, bio; S3 object storage with RustFS) is implemented and not committed yet** (waiting
+for the human's review; it changes `UserView` in identity-contract and the `/api/me` and `/api/auth/verify` responses).
+See "Profile and object storage (step 14)".
 
 | Step | What | Commit |
 | ---- | ---- | ------ |
@@ -28,9 +27,24 @@ projects live in the `issue` context, not a new one.
 | 10 | Claude Code provider | `30e90bc` |
 | 11 | Usage page, inbox context and page | `52d0020` |
 | 12 | Login rate limit, dev seed data, Playwright E2E, docs | `88090d2` |
-| 13 | Projects, per-project issue keys (changes the daemon API: needs human review) | not committed |
+| 13 | Projects, per-project issue keys (changes the daemon API: needs human review) | `67afefd` |
+| - | Home page removed, My Issues is the landing page | `c311004` |
+| 14 | Profile (avatar, name, bio), S3 object storage (RustFS) | not committed |
 
-After step 13 (uncommitted, frontend only): the Home page was removed and "My Issues" became the first sidebar entry and the
+Step 14 run: `./gradlew build` 1007 tests (884 backend, 123 daemon; the real-Claude smoke test skipped), frontend
+458 tests (37 files), E2E 1 test passing (the jar ran without any `STORAGE_*` set); `typecheck`, `lint`, `build`
+clean. 5 break-the-rule checks each failed the right test: no
+magic-byte check, no 2 MB check in the domain, old picture not deleted, any avatar ID served (unit tests), and the name
+update wiping the avatar columns (`updatingTheNameKeepsTheAvatar`); plus the frontend without its size check. By hand
+(RustFS from docker-compose with throwaway keys, dev backend on the dev database with old data, no `pg_dump` taken
+since the migration only adds columns): V2 gave the 12 existing users an empty bio and no avatar; name and bio saved;
+a PNG uploaded and shown on the page, the account menu, Members and an issue card; replaced by a JPEG (old URL 404,
+old object gone from RustFS, bucket created on the first upload); 2 MB+ file 413 `upload.too_large` (the real servlet
+limit), SVG named `.png` 400, no cookie 401, RustFS stopped 503 (log names no keys); photo removed (object gone).
+Test data left: the demo user is now "Demo Nguyễn" with a bio, no photo. `.claude/launch.json` passes the throwaway
+`STORAGE_*` keys to the backend.
+
+After step 13: the Home page was removed and "My Issues" became the first sidebar entry and the
 landing page (see "No home page"). Frontend 442 tests (35 files), `typecheck`, `lint`, `build` clean; 2 break-the-rule
 checks (no redirect, wrong order) failed the right tests. By hand on the dev app: `/w/home-check` redirected to
 `/issues`, "My Issues" first and marked. Backend untouched, so the Gradle build was not run.
@@ -141,6 +155,32 @@ processes in this harness can only be killed hard; `DaemonTest` covers it.
   later, after the drag has ended). A card's sortable `data.status` is the column showing it, not `issue.status`.
   To measure it in the browser pane, widen the viewport first (`resize_window`): off-screen pointer events trigger
   dnd-kit auto-scroll. A hidden pane never finishes Web Animations, so the drop overlay stays there.
+
+## Profile and object storage (step 14)
+
+- Decided by the user: the avatar shows everywhere a person appears; page at Settings → Profile
+  (`/w/:slug/settings/profile`, also in the account menu); no cropping. Email stays read-only.
+- **MinIO images are gone** (Docker Hub `minio/minio` deleted, quay.io refuses anonymous pulls). The user chose
+  **RustFS** (`rustfs/rustfs:1.0.5`, env `RUSTFS_ACCESS_KEY`/`RUSTFS_SECRET_KEY`, health `GET /health` on 9000, console
+  9001) for docker-compose and Testcontainers (`StorageTestConfiguration`, a `GenericContainer` bean plus a
+  `DynamicPropertyRegistrar`, imported by `IntegrationTest`). The client is the MinIO Java SDK 9.0.4 (plain S3; every
+  call throws the checked `MinioException`, `ErrorResponseException.errorResponse().code()` gives `NoSuchKey`...).
+- Platform `storage`: `ObjectStorage`, `S3ObjectStorage` (bucket created lazily on the first put, so the app and E2E
+  start without a store), `StorageProperties` (`orchestragent.storage.*` ← `STORAGE_*`), `StorageUnavailableException`
+  → 503. `GlobalExceptionHandler` overrides `handleMaxUploadSizeExceededException` → 413 `upload.too_large`.
+- Identity: `DisplayName`, `Bio`, `ImageType` (magic bytes), `Avatar` (`forUpload` checks 2 MB) in the domain;
+  `ProfileService`, `ProfileView`, `Profiles` (the one place building `UserView`/`ProfileView`/`avatarUrl`), port
+  `AvatarStorage` in the application; `ObjectStorageAvatarStorage`, `MeController` (PATCH, PUT/DELETE avatar),
+  `AvatarController` in infrastructure. `User` is immutable without `with...` methods: changes go through
+  `UserRepository.updateProfile` (name, bio) and `replaceAvatar` (one `UPDATE ... RETURNING` of the old avatar), both
+  plain SQL through `JdbcClient` so neither overwrites the other's columns.
+- `UserView` gained `avatarUrl` (4 test fakes pass `null`); `MemberView/MemberResponse` and `ActorView/ActorResponse`
+  carry it. MockMvc skips the multipart size limit, so the 413 is covered by `GlobalExceptionHandlerTest` and by hand.
+- Frontend: `apiRequest` sends a `FormData` body as is; `fakeServer` records `rawBody`; `shared/components/UserAvatar`;
+  `features/profile`. jsdom never loads images: `test/images.ts` `stubImagesAsLoaded()` makes Radix show `<img>`.
+  `user.upload` honours `accept`, so the wrong-type test uses `userEvent.setup({ applyAccept: false })`.
+- The user's `.env` has no `STORAGE_*` yet: `docker compose up` now fails until they add them (same `:?` rule as the
+  database). For manual runs pass throwaway keys: `STORAGE_ACCESS_KEY=... STORAGE_SECRET_KEY=... docker compose up -d rustfs`.
 
 ## No home page (decided by the user, after step 13)
 

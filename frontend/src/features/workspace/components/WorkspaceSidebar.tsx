@@ -1,4 +1,15 @@
-import { BarChart3, Bot, CircleDot, FolderKanban, Inbox, KeyRound, Server, Users, type LucideIcon } from 'lucide-react'
+import {
+  BarChart3,
+  Bot,
+  CircleDot,
+  FolderKanban,
+  Inbox,
+  KeyRound,
+  Server,
+  UserRound,
+  Users,
+  type LucideIcon,
+} from 'lucide-react'
 import { NavLink } from 'react-router'
 import { useUnreadCount } from '@/features/inbox/hooks'
 import { useProjects } from '@/features/project/hooks'
@@ -93,6 +104,9 @@ export function WorkspaceSidebar({ current, workspaces }: { current: Workspace; 
         </SidebarLink>
         <SidebarLink to={`${base}/settings/tokens`} icon={KeyRound}>
           API tokens
+        </SidebarLink>
+        <SidebarLink to={`${base}/settings/profile`} icon={UserRound}>
+          Profile
         </SidebarLink>
       </nav>
     </aside>

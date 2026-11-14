@@ -7,7 +7,6 @@ import com.orchestragent.issue.application.port.AgentDirectory;
 import com.orchestragent.issue.domain.Actor;
 import com.orchestragent.issue.domain.ActorType;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -40,23 +39,19 @@ class ActorNames {
             }
             (actor.type() == ActorType.MEMBER ? memberIds : agentIds).add(actor.id());
         }
-        Map<UUID, String> names = new HashMap<>();
-        if (!memberIds.isEmpty()) {
-            Map<UUID, UserView> found = users.findByIds(memberIds);
-            memberIds.forEach(id -> names.put(id, found.containsKey(id) ? found.get(id).name() : UNKNOWN_USER));
-        }
+        Map<UUID, UserView> members = memberIds.isEmpty() ? Map.of() : users.findByIds(memberIds);
         Map<UUID, String> agentNames = agentIds.isEmpty() ? Map.of() : agents.names(workspaceId, agentIds);
-        return new Lookup(names, agentNames);
+        return new Lookup(members, agentNames);
     }
 
     /** The result of {@link #resolve}: a view for any actor that was asked about. */
     static final class Lookup {
 
-        private final Map<UUID, String> memberNames;
+        private final Map<UUID, UserView> members;
         private final Map<UUID, String> agentNames;
 
-        private Lookup(Map<UUID, String> memberNames, Map<UUID, String> agentNames) {
-            this.memberNames = memberNames;
+        private Lookup(Map<UUID, UserView> members, Map<UUID, String> agentNames) {
+            this.members = members;
             this.agentNames = agentNames;
         }
 
@@ -65,16 +60,19 @@ class ActorNames {
             if (actor == null) {
                 return null;
             }
-            String name = actor.type() == ActorType.MEMBER
-                    ? memberNames.getOrDefault(actor.id(), UNKNOWN_USER)
-                    : agentNames.getOrDefault(actor.id(), UNKNOWN_AGENT);
-            return new ActorView(actor.type(), actor.id(), name);
+            if (actor.type() == ActorType.MEMBER) {
+                UserView member = members.get(actor.id());
+                return member == null
+                        ? new ActorView(actor.type(), actor.id(), UNKNOWN_USER, null)
+                        : new ActorView(actor.type(), actor.id(), member.name(), member.avatarUrl());
+            }
+            return new ActorView(actor.type(), actor.id(), agentNames.getOrDefault(actor.id(), UNKNOWN_AGENT), null);
         }
 
         /** The author of a comment: {@code authorId} is null for the system. */
         ActorView author(ActorType type, UUID authorId) {
             return type == ActorType.SYSTEM
-                    ? new ActorView(ActorType.SYSTEM, null, SYSTEM)
+                    ? new ActorView(ActorType.SYSTEM, null, SYSTEM, null)
                     : view(new Actor(type, authorId));
         }
     }

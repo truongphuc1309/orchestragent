@@ -1,5 +1,6 @@
 package com.orchestragent.platform.web;
 
+import com.orchestragent.platform.storage.StorageUnavailableException;
 import com.orchestragent.shared.error.ConflictException;
 import com.orchestragent.shared.error.DomainException;
 import com.orchestragent.shared.error.ForbiddenException;
@@ -14,12 +15,15 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.context.request.WebRequest;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
 /**
@@ -68,6 +72,20 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     ResponseEntity<ProblemDetail> handleOptimisticLock(OptimisticLockingFailureException e) {
         log.info("Optimistic lock conflict: {}", e.getMessage());
         return problem(HttpStatus.CONFLICT, "Someone else changed this at the same time. Please try again.", "conflict");
+    }
+
+    @ExceptionHandler(StorageUnavailableException.class)
+    ResponseEntity<ProblemDetail> handleStorageUnavailable(StorageUnavailableException e) {
+        return problem(HttpStatus.SERVICE_UNAVAILABLE, "File storage is not available. Please try again later.",
+                "storage.unavailable");
+    }
+
+    /** An upload larger than {@code spring.servlet.multipart.max-file-size}. */
+    @Override
+    protected ResponseEntity<Object> handleMaxUploadSizeExceededException(
+            MaxUploadSizeExceededException e, HttpHeaders headers, HttpStatusCode status, WebRequest request) {
+        return ResponseEntity.status(HttpStatus.CONTENT_TOO_LARGE)
+                .body(problemDetail(HttpStatus.CONTENT_TOO_LARGE, "The file is too large.", "upload.too_large"));
     }
 
     @ExceptionHandler(AccessDeniedException.class)

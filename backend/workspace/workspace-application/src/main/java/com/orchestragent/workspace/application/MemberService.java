@@ -89,7 +89,9 @@ public class MemberService {
     private static MemberView toView(Member member, UserView person) {
         String name = person == null ? "Unknown user" : person.name();
         String email = person == null ? "" : person.email();
-        return new MemberView(member.userId(), name, email, Roles.toContract(member.role()), member.createdAt());
+        String avatarUrl = person == null ? null : person.avatarUrl();
+        return new MemberView(
+                member.userId(), name, email, avatarUrl, Roles.toContract(member.role()), member.createdAt());
     }
 
     private static NotFoundException memberNotFound() {

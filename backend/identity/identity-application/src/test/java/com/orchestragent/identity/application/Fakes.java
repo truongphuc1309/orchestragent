@@ -1,6 +1,11 @@
 package com.orchestragent.identity.application;
 
 import com.orchestragent.identity.application.port.AccessTokenIssuer;
+import com.orchestragent.identity.application.port.AvatarStorage;
+import com.orchestragent.identity.domain.Avatar;
+import com.orchestragent.identity.domain.Bio;
+import com.orchestragent.identity.domain.DisplayName;
+import java.util.UUID;
 import com.orchestragent.identity.application.port.CodeHasher;
 import com.orchestragent.identity.application.port.DevLoginCodeProvider;
 import com.orchestragent.identity.application.port.LoginCodeGenerator;
@@ -105,6 +110,63 @@ final class Fakes {
         @Override
         public User createIfAbsent(User user) {
             return byEmail.computeIfAbsent(user.email(), email -> user);
+        }
+
+        @Override
+        public boolean updateProfile(UserId id, DisplayName name, Bio bio) {
+            return findById(id).map(user -> {
+                byEmail.put(user.email(), new User(
+                        user.id(), user.email(), name.value(), bio.value(), user.avatar().orElse(null), user.createdAt()));
+                return true;
+            }).orElse(false);
+        }
+
+        @Override
+        public Optional<Avatar> replaceAvatar(UserId id, Avatar avatar) {
+            if (failNextAvatarWrite) {
+                failNextAvatarWrite = false;
+                throw new IllegalStateException("database down");
+            }
+            return findById(id).flatMap(user -> {
+                byEmail.put(user.email(), new User(
+                        user.id(), user.email(), user.name(), user.bio(), avatar, user.createdAt()));
+                return user.avatar();
+            });
+        }
+
+        boolean failNextAvatarWrite;
+
+        User add(String email) {
+            User user = User.register(Email.of(email), Instant.parse("2026-01-01T10:00:00Z"));
+            byEmail.put(user.email(), user);
+            return user;
+        }
+    }
+
+    /** Keeps pictures in a map; {@code down} makes every store fail like an unreachable server. */
+    static final class InMemoryAvatarStorage implements AvatarStorage {
+
+        final Map<UUID, byte[]> byAvatarId = new HashMap<>();
+        final List<UUID> discarded = new ArrayList<>();
+        boolean down;
+
+        @Override
+        public void store(UserId userId, Avatar avatar, byte[] content) {
+            if (down) {
+                throw new IllegalStateException("storage down");
+            }
+            byAvatarId.put(avatar.id(), content.clone());
+        }
+
+        @Override
+        public Optional<byte[]> load(UserId userId, Avatar avatar) {
+            return Optional.ofNullable(byAvatarId.get(avatar.id()));
+        }
+
+        @Override
+        public void discard(UserId userId, Avatar avatar) {
+            discarded.add(avatar.id());
+            byAvatarId.remove(avatar.id());
         }
     }
 

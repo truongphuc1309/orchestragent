@@ -4,7 +4,10 @@ export interface RecordedRequest {
   method: string
   path: string
   headers: Headers
+  /** The parsed JSON body; undefined for any other body. */
   body: unknown
+  /** The body exactly as sent (for example the `FormData` of an upload). */
+  rawBody: BodyInit | null | undefined
   credentials: RequestCredentials | undefined
 }
 
@@ -57,6 +60,7 @@ export function fakeServer(handlers: Record<string, Handler>) {
       path,
       headers: new Headers(init?.headers),
       body: rawBody === undefined ? undefined : JSON.parse(rawBody),
+      rawBody: init?.body,
       credentials: init?.credentials,
     }
     requests.push(request)

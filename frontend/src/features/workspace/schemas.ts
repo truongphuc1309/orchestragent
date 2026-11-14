@@ -18,6 +18,8 @@ export const memberSchema = z.object({
   userId: z.uuid(),
   name: z.string(),
   email: z.string(),
+  // Picture of the person, served by the API; null when they have none.
+  avatarUrl: z.string().nullable(),
   role: roleSchema,
   joinedAt: z.string(),
 })

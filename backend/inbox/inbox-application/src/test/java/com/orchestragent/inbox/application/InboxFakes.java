@@ -174,7 +174,7 @@ final class InboxFakes {
         final Map<UUID, UserView> byId = new HashMap<>();
 
         UUID add(String name) {
-            UserView user = new UserView(UUID.randomUUID(), name.toLowerCase() + "@example.com", name);
+            UserView user = new UserView(UUID.randomUUID(), name.toLowerCase() + "@example.com", name, null);
             byId.put(user.id(), user);
             return user.id();
         }

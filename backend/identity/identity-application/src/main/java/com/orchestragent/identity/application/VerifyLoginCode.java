@@ -4,7 +4,7 @@ import com.orchestragent.identity.application.port.AccessTokenIssuer;
 import com.orchestragent.identity.application.port.AccessTokenIssuer.IssuedAccessToken;
 import com.orchestragent.identity.application.port.CodeHasher;
 import com.orchestragent.identity.application.port.DevLoginCodeProvider;
-import com.orchestragent.identity.contract.UserView;
+
 import com.orchestragent.identity.domain.Email;
 import com.orchestragent.identity.domain.LoginCode;
 import com.orchestragent.identity.domain.LoginCodeRepository;
@@ -65,7 +65,7 @@ public class VerifyLoginCode {
         User user = users.createIfAbsent(User.register(email, now));
         IssuedAccessToken token = tokenIssuer.issue(user);
         return new LoginResult(
-                token.value(), token.expiresAt(), new UserView(user.id().value(), user.email().value(), user.name()));
+                token.value(), token.expiresAt(), Profiles.profileView(user));
     }
 
     private void consumeEmailedCode(Email email, String submittedCode, Instant now) {
@@ -90,6 +90,6 @@ public class VerifyLoginCode {
                 .orElse(false);
     }
 
-    public record LoginResult(String accessToken, Instant expiresAt, UserView user) {
+    public record LoginResult(String accessToken, Instant expiresAt, ProfileView user) {
     }
 }

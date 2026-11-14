@@ -6,7 +6,7 @@ import { renderRoutes } from '@/test/render'
 import { LoginPage } from '../pages/LoginPage'
 import { AuthGuard } from './AuthGuard'
 
-const ADA = { id: '0198f1c0-0000-7000-8000-000000000001', email: 'ada@example.com', name: 'ada' }
+const ADA = { id: '0198f1c0-0000-7000-8000-000000000001', email: 'ada@example.com', name: 'ada', bio: '', avatarUrl: null }
 
 const routes = [
   { path: '/login', element: <LoginPage /> },

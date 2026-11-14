@@ -60,10 +60,10 @@ final class IssueDtos {
     record CommentRequest(@NotBlank @Size(max = 10_000) String body) {
     }
 
-    record ActorResponse(String type, UUID id, String name) {
+    record ActorResponse(String type, UUID id, String name, String avatarUrl) {
 
         static ActorResponse from(ActorView view) {
-            return view == null ? null : new ActorResponse(view.type().code(), view.id(), view.name());
+            return view == null ? null : new ActorResponse(view.type().code(), view.id(), view.name(), view.avatarUrl());
         }
     }
 

@@ -1,3 +1,4 @@
+import type { User } from '@/features/auth/schemas'
 import type { Task, TaskMessage } from '@/features/task/schemas'
 import type { Agent, Runtime } from '@/features/agent/schemas'
 import type { Comment, Issue } from '@/features/issue/schemas'
@@ -5,7 +6,13 @@ import type { Project } from '@/features/project/schemas'
 import type { Invitation, Member, Workspace } from '@/features/workspace/schemas'
 
 /** Sample API data shared by the tests. IDs are fixed so assertions stay readable. */
-export const ADA = { id: '0198f1c0-0000-7000-8000-000000000001', email: 'ada@example.com', name: 'ada' }
+export const ADA: User = {
+  id: '0198f1c0-0000-7000-8000-000000000001',
+  email: 'ada@example.com',
+  name: 'ada',
+  bio: '',
+  avatarUrl: null,
+}
 
 export const ACME: Workspace = {
   id: '0198f1c0-0000-7000-8000-0000000000a1',
@@ -26,6 +33,7 @@ export const GLOBEX: Workspace = {
 export function member(overrides: Partial<Member> & Pick<Member, 'userId' | 'name'>): Member {
   return {
     email: `${overrides.name.toLowerCase()}@example.com`,
+    avatarUrl: null,
     role: 'member',
     joinedAt: '2026-01-01T10:00:00Z',
     ...overrides,
@@ -75,7 +83,7 @@ export function issue(overrides: Partial<Issue> & Pick<Issue, 'id' | 'number' | 
     status: 'todo',
     priority: 'none',
     assignee: null,
-    creator: { type: 'member', id: ADA.id, name: ADA.name },
+    creator: { type: 'member', id: ADA.id, name: ADA.name, avatarUrl: null },
     position: 1024,
     createdAt: '2026-01-04T10:00:00Z',
     updatedAt: '2026-01-04T10:00:00Z',
@@ -89,7 +97,7 @@ export function issueId(n: number): string {
 
 export function comment(overrides: Partial<Comment> & Pick<Comment, 'id' | 'issueId' | 'body'>): Comment {
   return {
-    author: { type: 'member', id: ADA.id, name: ADA.name },
+    author: { type: 'member', id: ADA.id, name: ADA.name, avatarUrl: null },
     createdAt: '2026-01-05T10:00:00Z',
     ...overrides,
   }

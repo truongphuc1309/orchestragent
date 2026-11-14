@@ -13,6 +13,7 @@ dependencies {
     api(libs.spring.boot.starter.security.oauth2.resource.server)
     api(libs.spring.boot.starter.flyway)
     api(libs.spring.modulith.starter.jpa)
+    implementation(libs.minio)
     runtimeOnly(libs.flyway.postgresql)
     runtimeOnly(libs.postgresql)
 

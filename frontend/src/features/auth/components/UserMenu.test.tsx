@@ -6,7 +6,7 @@ import { ACME } from '@/test/fixtures'
 import { fakeServer, json, noContent, problem } from '@/test/fakeServer'
 import { renderRoutes } from '@/test/render'
 
-const ADA = { id: '0198f1c0-0000-7000-8000-000000000001', email: 'ada@example.com', name: 'ada' }
+const ADA = { id: '0198f1c0-0000-7000-8000-000000000001', email: 'ada@example.com', name: 'ada', bio: '', avatarUrl: null }
 
 describe('UserMenu', () => {
   beforeEach(() => {

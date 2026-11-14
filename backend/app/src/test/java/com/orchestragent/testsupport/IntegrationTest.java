@@ -6,6 +6,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.orchestragent.PostgresTestConfiguration;
+import com.orchestragent.StorageTestConfiguration;
 import com.orchestragent.identity.application.port.LoginCodeGenerator;
 import com.orchestragent.identity.application.port.LoginCodeSender;
 import com.orchestragent.workspace.application.port.InvitationNotifier;
@@ -30,14 +31,14 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
 /**
- * Shared setup of the API integration tests: real Postgres and real security chains, but mock outgoing email
- * and a fixed login code so tests know the code. All subclasses use the same Spring configuration, so the
- * application context (and its Postgres container) is created once.
+ * Shared setup of the API integration tests: real Postgres, real object storage and real security chains, but
+ * mock outgoing email and a fixed login code so tests know the code. All subclasses use the same Spring
+ * configuration, so the application context (and its containers) is created once.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
-@Import(PostgresTestConfiguration.class)
+@Import({PostgresTestConfiguration.class, StorageTestConfiguration.class})
 @ExtendWith(OutputCaptureExtension.class)
 public abstract class IntegrationTest {
 

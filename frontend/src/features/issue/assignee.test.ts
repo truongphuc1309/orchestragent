@@ -27,12 +27,12 @@ describe('assignee values', () => {
 
 describe('assigneeRef', () => {
   it('turns the assignee of an issue into a reference', () => {
-    expect(assigneeRef({ type: 'agent', id: ID, name: 'Builder' })).toEqual({ type: 'agent', id: ID })
-    expect(assigneeRef({ type: 'member', id: ID, name: 'Mia' })).toEqual({ type: 'member', id: ID })
+    expect(assigneeRef({ type: 'agent', id: ID, name: 'Builder', avatarUrl: null })).toEqual({ type: 'agent', id: ID })
+    expect(assigneeRef({ type: 'member', id: ID, name: 'Mia', avatarUrl: null })).toEqual({ type: 'member', id: ID })
   })
 
   it('gives nothing for nobody and for the system', () => {
     expect(assigneeRef(null)).toBeNull()
-    expect(assigneeRef({ type: 'system', id: null, name: 'System' })).toBeNull()
+    expect(assigneeRef({ type: 'system', id: null, name: 'System', avatarUrl: null })).toBeNull()
   })
 })

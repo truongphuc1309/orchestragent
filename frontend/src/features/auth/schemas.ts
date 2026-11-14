@@ -4,6 +4,10 @@ export const userSchema = z.object({
   id: z.uuid(),
   email: z.string(),
   name: z.string(),
+  // "About you"; empty when not set.
+  bio: z.string(),
+  // Picture served by the API; null when the user has none.
+  avatarUrl: z.string().nullable(),
 })
 
 export type User = z.infer<typeof userSchema>

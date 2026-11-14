@@ -10,6 +10,7 @@ export interface RequestOptions<T> {
   /** Every response is parsed with this schema; there are no unchecked casts. */
   schema: z.ZodType<T>
   method?: Method
+  /** Sent as JSON, except a `FormData` (file upload), which is sent as a multipart form. */
   body?: unknown
   signal?: AbortSignal
 }
@@ -33,7 +34,10 @@ async function csrfToken(): Promise<string | undefined> {
 export async function apiRequest<T>(path: string, options: RequestOptions<T>): Promise<T> {
   const method = options.method ?? 'GET'
   const headers = new Headers({ Accept: 'application/json' })
-  if (options.body !== undefined) {
+  // A form (file upload) sets its own multipart Content-Type with the boundary; everything else is JSON.
+  const body =
+    options.body instanceof FormData || options.body === undefined ? options.body : JSON.stringify(options.body)
+  if (typeof body === 'string') {
     headers.set('Content-Type', 'application/json')
   }
   if (method !== 'GET') {
@@ -46,7 +50,7 @@ export async function apiRequest<T>(path: string, options: RequestOptions<T>): P
     method,
     headers,
     credentials: 'same-origin',
-    body: options.body === undefined ? undefined : JSON.stringify(options.body),
+    body,
     signal: options.signal,
   })
   return parseResponse(path, response, options.schema)

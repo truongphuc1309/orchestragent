@@ -4,8 +4,7 @@ import { toast } from 'sonner'
 import { useMe } from '@/features/auth/hooks'
 import { messageOf } from '@/shared/api/errors'
 import { ConfirmDialog } from '@/shared/layout/ConfirmDialog'
-import { initials } from '@/shared/lib/format'
-import { Avatar, AvatarFallback } from '@/shared/ui/avatar'
+import { UserAvatar } from '@/shared/components/UserAvatar'
 import { Button } from '@/shared/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/ui/select'
 import { useChangeMemberRole, useRemoveMember } from '../hooks'
@@ -66,9 +65,7 @@ export function MembersTable({ workspace, members }: { workspace: Workspace; mem
           const options = ROLES.filter((role) => canChangeRole(workspace.role, member.role, role))
           return (
             <li key={member.userId} className="flex items-center gap-3 px-3 py-2">
-              <Avatar size="sm">
-                <AvatarFallback>{initials(member.name)}</AvatarFallback>
-              </Avatar>
+              <UserAvatar name={member.name} avatarUrl={member.avatarUrl} size="sm" />
               <div className="min-w-0 flex-1">
                 <p className="truncate font-medium">
                   {member.name}

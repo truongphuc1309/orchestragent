@@ -18,8 +18,8 @@ real time, and moves the issue to review for a human to approve.
 ## Getting started
 
 ```bash
-cp .env.example .env        # then fill in JWT_SECRET (openssl rand -base64 32)
-docker compose up -d        # Postgres on 5432, Mailpit SMTP on 1025, Mailpit UI on http://localhost:8025
+cp .env.example .env        # then fill in JWT_SECRET (openssl rand -base64 32) and the STORAGE_* keys
+docker compose up -d        # Postgres on 5432, Mailpit SMTP on 1025 and UI on :8025, RustFS (S3) on 9000 and console on :9001
 ./gradlew build
 ```
 
@@ -33,7 +33,7 @@ secret shorter than 32 bytes):
 curl http://localhost:8080/api/health
 ```
 
-The integration tests start their own Postgres with Testcontainers, so Docker must be running.
+The integration tests start their own Postgres and RustFS with Testcontainers, so Docker must be running.
 
 ### Logging in (step 2)
 
@@ -344,6 +344,30 @@ migration into one project per workspace, "General" with the key `GEN` (issue nu
 and old notifications were given the matching `GEN-n` keys. A new workspace starts without projects; its Issues page
 asks for one first.
 
+### Profile and object storage (step 14)
+
+Everyone edits their own profile on **Settings → Profile** (`/w/{slug}/settings/profile`, also in the account menu): a
+photo, a name (1 to 100 characters, one line) and "About you" (up to 500 characters). The email is shown but cannot be
+changed there. The profile belongs to the user, not to a workspace, and the photo shows wherever the person appears:
+the account menu, the members list, issue creators and assignees (board, list, detail) and comment authors.
+
+REST: `GET /api/me` and `POST /api/auth/verify` return `{id, email, name, bio, avatarUrl}`; `PATCH /api/me {name, bio}`
+(`400 profile.name_required|name_too_long|name_invalid|bio_too_long|bio_invalid`); `PUT /api/me/avatar` (multipart, part
+`file`) and `DELETE /api/me/avatar` return the new profile. A photo is a PNG, JPEG or WebP of at most 2 MB: the format
+is read from the first bytes of the file, never from its name or `Content-Type` (`400 avatar.unsupported_type`, SVG is
+refused because it can carry scripts), a bigger file is `413 upload.too_large`, and an unreachable store is
+`503 storage.unavailable`. Members and issue actors carry `avatarUrl` too (null without a photo, and always null for
+agents and the system).
+
+Photos live in an S3-compatible object store (RustFS in Docker Compose; the official MinIO images are no longer
+published). The store stays private: photos are served by `GET /api/users/{userId}/avatar/{avatarId}` to signed-in
+users only, with `X-Content-Type-Options: nosniff`. Every upload gets a new avatar ID, so the address of a photo never
+shows another picture and is cached for a year (`private, immutable`); an old address answers 404. Objects are keyed
+`identity/avatars/{userId}/{avatarId}` in one bucket (the prefix is the owning context), and the bucket is created on
+the first upload, so the app starts without the store. An upload stores the object, then points the user row at it
+with one statement that also returns the photo it replaced, then deletes that one; saving the name never touches the
+photo columns. Other people see a new name or photo when their page fetches its data again (there is no live event).
+
 ### Frontend (step 3)
 
 ```bash
@@ -484,16 +508,20 @@ small issue first).
 
 ## Environment variables
 
-| Variable         | Purpose                                                             |
-| ---------------- | ------------------------------------------------------------------- |
-| `DB_URL`         | JDBC URL of the Postgres database                                   |
-| `DB_USER`        | Database user (also used by Docker Compose to create the user)      |
-| `DB_PASSWORD`    | Database password                                                   |
-| `JWT_SECRET`     | HS256 signing secret, at least 32 bytes                             |
-| `MAIL_HOST`      | SMTP host (Mailpit in development)                                  |
-| `MAIL_PORT`      | SMTP port                                                           |
-| `APP_BASE_URL`   | Public URL of the web app, used in emails                           |
-| `DEV_LOGIN_CODE` | Fixed login code, accepted only with the `dev` profile              |
+| Variable             | Purpose                                                                       |
+| -------------------- | ----------------------------------------------------------------------------- |
+| `DB_URL`             | JDBC URL of the Postgres database                                             |
+| `DB_USER`            | Database user (also used by Docker Compose to create the user)                |
+| `DB_PASSWORD`        | Database password                                                             |
+| `JWT_SECRET`         | HS256 signing secret, at least 32 bytes                                       |
+| `MAIL_HOST`          | SMTP host (Mailpit in development)                                            |
+| `MAIL_PORT`          | SMTP port                                                                     |
+| `APP_BASE_URL`       | Public URL of the web app, used in emails                                     |
+| `DEV_LOGIN_CODE`     | Fixed login code, accepted only with the `dev` profile                        |
+| `STORAGE_ENDPOINT`   | URL of the S3-compatible object storage (default `http://localhost:9000`)     |
+| `STORAGE_ACCESS_KEY` | Its access key (also the RustFS root user in Docker Compose)                  |
+| `STORAGE_SECRET_KEY` | Its secret key (also the RustFS root password in Docker Compose)              |
+| `STORAGE_BUCKET`     | Bucket for uploaded files (default `orchestragent`), created on first upload  |
 
 Other settings are Spring properties (`--name=value`, or the matching environment variable):
 

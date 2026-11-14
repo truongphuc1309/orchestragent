@@ -1,6 +1,5 @@
 package com.orchestragent.identity.application;
 
-import com.orchestragent.identity.contract.UserView;
 import com.orchestragent.identity.domain.UserId;
 import com.orchestragent.identity.domain.UserRepository;
 import com.orchestragent.shared.error.UnauthorizedException;
@@ -19,9 +18,9 @@ public class GetMe {
 
     /** A valid token for a user that no longer exists is treated as not authenticated. */
     @Transactional(readOnly = true)
-    public UserView execute(UUID userId) {
+    public ProfileView execute(UUID userId) {
         return users.findById(new UserId(userId))
-                .map(user -> new UserView(user.id().value(), user.email().value(), user.name()))
+                .map(Profiles::profileView)
                 .orElseThrow(() -> new UnauthorizedException("User no longer exists"));
     }
 }

@@ -6,6 +6,7 @@ springdoc = "3.0.3"
 java-uuid-generator = "5.2.0"
 archunit = "1.5.1"
 picocli = "4.7.7"
+minio = "9.0.4"
 
 [libraries]
 # BOMs (imported as platforms by the convention plugins)
@@ -48,6 +49,7 @@ springdoc-openapi-webmvc-ui = { module = "org.springdoc:springdoc-openapi-starte
 java-uuid-generator = { module = "com.fasterxml.uuid:java-uuid-generator", version.ref = "java-uuid-generator" }
 archunit-junit5 = { module = "com.tngtech.archunit:archunit-junit5", version.ref = "archunit" }
 picocli = { module = "info.picocli:picocli", version.ref = "picocli" }
+minio = { module = "io.minio:minio", version.ref = "minio" }
 
 # Gradle plugins used as dependencies of build-logic
 spring-boot-gradle-plugin = { module = "org.springframework.boot:spring-boot-gradle-plugin", version.ref = "spring-boot" }

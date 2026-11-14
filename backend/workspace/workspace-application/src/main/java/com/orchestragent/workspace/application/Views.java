@@ -14,7 +14,7 @@ public final class Views {
     public record WorkspaceView(UUID id, String name, String slug, WorkspaceRole role, Instant createdAt) {
     }
 
-    public record MemberView(UUID userId, String name, String email, WorkspaceRole role, Instant joinedAt) {
+    public record MemberView(UUID userId, String name, String email, String avatarUrl, WorkspaceRole role, Instant joinedAt) {
     }
 
     public record InvitationView(

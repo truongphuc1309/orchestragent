@@ -28,10 +28,11 @@ final class WorkspaceDtos {
         }
     }
 
-    record MemberResponse(UUID userId, String name, String email, String role, Instant joinedAt) {
+    record MemberResponse(UUID userId, String name, String email, String avatarUrl, String role, Instant joinedAt) {
 
         static MemberResponse from(MemberView view) {
-            return new MemberResponse(view.userId(), view.name(), view.email(), roleCode(view.role()), view.joinedAt());
+            return new MemberResponse(
+                    view.userId(), view.name(), view.email(), view.avatarUrl(), roleCode(view.role()), view.joinedAt());
         }
     }
 

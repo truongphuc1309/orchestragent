@@ -1,9 +1,12 @@
 import { Sparkles } from 'lucide-react'
-import { initials } from '@/shared/lib/format'
+import { UserAvatar } from '@/shared/components/UserAvatar'
 import { Avatar, AvatarFallback } from '@/shared/ui/avatar'
 import type { Actor } from '../schemas'
 
-/** A member shows their initials; an agent always shows the purple "discovery" tone with a spark. */
+/**
+ * A member shows their picture, or their initials without one; an agent always shows the purple "discovery" tone
+ * with a spark; the system shows an S.
+ */
 export function ActorAvatar({ actor, size = 'sm' }: { actor: Actor; size?: 'sm' | 'default' }) {
   if (actor.type === 'agent') {
     return (
@@ -14,9 +17,12 @@ export function ActorAvatar({ actor, size = 'sm' }: { actor: Actor; size?: 'sm' 
       </Avatar>
     )
   }
-  return (
-    <Avatar size={size}>
-      <AvatarFallback>{actor.type === 'system' ? 'S' : initials(actor.name)}</AvatarFallback>
-    </Avatar>
-  )
+  if (actor.type === 'system') {
+    return (
+      <Avatar size={size}>
+        <AvatarFallback>S</AvatarFallback>
+      </Avatar>
+    )
+  }
+  return <UserAvatar name={actor.name} avatarUrl={actor.avatarUrl} size={size} />
 }
